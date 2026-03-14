@@ -96,7 +96,7 @@ async function uploadToSupabase(base64) {
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        apikey: SUPABASE_SERVICE_KEY,
         'Content-Type': 'image/jpeg',
       },
       body: buffer,
