@@ -1,0 +1,94 @@
+import express from 'express'
+import { createServer } from 'http'
+import { WebSocketServer } from 'ws'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const app = express()
+const server = createServer(app)
+const wss = new WebSocketServer({ server, path: '/ws' })
+
+const PORT = process.env.PORT || 3000
+
+// Serve built frontend
+app.use(express.static(join(__dirname, 'dist')))
+app.get('/{*splat}', (req, res) => {
+  res.sendFile(join(__dirname, 'dist', 'index.html'))
+})
+
+// Board rooms: boardId → { clients: Set<{ws, userId, name, color}>, board: object|null }
+const rooms = new Map()
+
+function getRoom(boardId) {
+  if (!rooms.has(boardId)) {
+    rooms.set(boardId, { clients: new Set(), board: null })
+  }
+  return rooms.get(boardId)
+}
+
+function broadcast(room, message, exclude) {
+  const data = JSON.stringify(message)
+  for (const client of room.clients) {
+    if (client.ws !== exclude && client.ws.readyState === 1) {
+      client.ws.send(data)
+    }
+  }
+}
+
+function broadcastUsers(room) {
+  const users = [...room.clients].map((c) => ({
+    id: c.userId,
+    name: c.name,
+    color: c.color,
+  }))
+  const msg = JSON.stringify({ type: 'users', users })
+  for (const client of room.clients) {
+    if (client.ws.readyState === 1) client.ws.send(msg)
+  }
+}
+
+wss.on('connection', (ws, req) => {
+  const url = new URL(req.url, 'http://localhost')
+  const boardId = url.searchParams.get('board') || 'default'
+  const userId = url.searchParams.get('user') || 'anon'
+  const name = decodeURIComponent(url.searchParams.get('name') || 'Anonymous')
+  const color = url.searchParams.get('color') || '#2563eb'
+
+  const room = getRoom(boardId)
+  const client = { ws, userId, name, color }
+  room.clients.add(client)
+
+  // Send current board state if server has it
+  if (room.board) {
+    ws.send(JSON.stringify({ type: 'sync', board: room.board }))
+  }
+
+  broadcastUsers(room)
+
+  ws.on('message', (raw) => {
+    let msg
+    try { msg = JSON.parse(raw) } catch { return }
+
+    if (msg.type === 'update') {
+      room.board = msg.board
+      broadcast(room, { type: 'sync', board: msg.board }, ws)
+    }
+  })
+
+  ws.on('close', () => {
+    room.clients.delete(client)
+    broadcastUsers(room)
+    // Clean up empty rooms
+    if (room.clients.size === 0) {
+      // Keep board data for 10 minutes in case someone reconnects
+      setTimeout(() => {
+        if (room.clients.size === 0) rooms.delete(boardId)
+      }, 600000)
+    }
+  })
+})
+
+server.listen(PORT, () => {
+  console.log(`Mood Board running at http://localhost:${PORT}`)
+})
