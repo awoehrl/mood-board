@@ -13,6 +13,7 @@ export function useSync() {
   let saveTimer = null
   let ignoreNextWatch = false
   let reconnectTimer = null
+  let initialized = false // Don't send updates until we get server state
 
   function getBoardId() {
     let id = window.location.hash.replace('#', '')
@@ -64,11 +65,7 @@ export function useSync() {
 
     ws.onopen = () => {
       connected.value = true
-      // Push our local state to server if we have data and server might not
-      const board = store.exportBoard()
-      if (board.zones?.length) {
-        ws.send(JSON.stringify({ type: 'update', board }))
-      }
+      // Don't push state yet — wait for server to tell us what it has
     }
 
     ws.onmessage = (e) => {
@@ -76,11 +73,20 @@ export function useSync() {
       try { msg = JSON.parse(e.data) } catch { return }
 
       if (msg.type === 'sync' && msg.board) {
-        // Only apply if the remote has more data or is different
         ignoreNextWatch = true
         store.loadBoard(msg.board)
         saveLocal()
+        initialized = true
         setTimeout(() => { ignoreNextWatch = false }, 50)
+      }
+
+      if (msg.type === 'no-data') {
+        // Server has no board — push our local state
+        initialized = true
+        const board = store.exportBoard()
+        if (board.zones?.length && ws?.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'update', board }))
+        }
       }
 
       if (msg.type === 'users') {
@@ -106,6 +112,7 @@ export function useSync() {
 
   function sendUpdate() {
     saveLocal()
+    if (!initialized) return // Don't push until we know server state
     syncing.value = true
     if (ws?.readyState === 1) {
       ws.send(JSON.stringify({ type: 'update', board: store.exportBoard() }))

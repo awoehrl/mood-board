@@ -59,9 +59,11 @@ wss.on('connection', (ws, req) => {
   const client = { ws, userId, name, color }
   room.clients.add(client)
 
-  // Send current board state if server has it
+  // Send current board state if server has it, otherwise tell client we have nothing
   if (room.board) {
     ws.send(JSON.stringify({ type: 'sync', board: room.board }))
+  } else {
+    ws.send(JSON.stringify({ type: 'no-data' }))
   }
 
   broadcastUsers(room)
