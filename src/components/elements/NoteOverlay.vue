@@ -99,4 +99,9 @@ function saveNote() {
   margin-top: 4px;
 }
 .note-edit-btn:hover { text-decoration: underline; }
+
+/* Touch targets */
+@media (pointer: coarse) {
+  .note-btn { width: 32px; height: 32px; }
+}
 </style>

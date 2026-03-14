@@ -1,9 +1,20 @@
 import { useBoardStore } from '../stores/board.js'
 import { screenToCanvas, hitTestZones } from '../utils/geometry.js'
-import { extractSourceUrl, isUrl, isImageUrl, compressImage, loadImageAsBase64 } from '../utils/clipboard.js'
+import { extractSourceUrl, isUrl, isImageUrl, compressImage, loadImageAsBase64, uploadImage } from '../utils/clipboard.js'
+import { useToast } from './useToast.js'
 
 export function useDragDrop(canvasState, showImageSourceModal) {
   const store = useBoardStore()
+  const toast = useToast()
+
+  async function tryUpload(compressed) {
+    try {
+      return await uploadImage(compressed)
+    } catch {
+      toast.show('Image upload failed — saved locally', 'warning')
+      return null
+    }
+  }
 
   async function handleFileDrop(e, viewportRect) {
     e.preventDefault()
@@ -24,13 +35,14 @@ export function useDragDrop(canvasState, showImageSourceModal) {
     for (const file of imageFiles) {
       const dataUrl = await readFileAsDataUrl(file)
       const compressed = await compressImage(dataUrl)
+      const cdnUrl = await tryUpload(compressed)
       store.addElement(targetZone.id, {
         type: 'image',
         x: canvasPos.x - targetZone.x,
         y: canvasPos.y - targetZone.y,
         width: 200,
         height: 150,
-        data: { src: compressed, sourceUrl: null, alt: file.name },
+        data: { src: cdnUrl || compressed, sourceUrl: null, alt: file.name },
       })
     }
   }
@@ -55,6 +67,7 @@ export function useDragDrop(canvasState, showImageSourceModal) {
       const blob = imageItem.getAsFile()
       const dataUrl = await readFileAsDataUrl(blob)
       const compressed = await compressImage(dataUrl)
+      const cdnUrl = await tryUpload(compressed)
 
       const htmlItem = items.find((i) => i.type === 'text/html')
       let sourceUrl = null
@@ -70,7 +83,7 @@ export function useDragDrop(canvasState, showImageSourceModal) {
         type: 'image',
         width: 200,
         height: 150,
-        data: { src: compressed, sourceUrl, alt: 'Pasted image' },
+        data: { src: cdnUrl || compressed, sourceUrl, alt: 'Pasted image' },
       })
 
       if (!sourceUrl && el && showImageSourceModal) {
@@ -94,12 +107,17 @@ export function useDragDrop(canvasState, showImageSourceModal) {
       // Image URL → create image element
       if (isImageUrl(trimmed)) {
         const base64 = await loadImageAsBase64(trimmed)
+        let src = base64 || trimmed
+        if (base64) {
+          const cdnUrl = await tryUpload(base64)
+          if (cdnUrl) src = cdnUrl
+        }
         store.addElement(targetZone.id, {
           type: 'image',
           width: 220,
           height: 160,
           data: {
-            src: base64 || trimmed,
+            src,
             sourceUrl: trimmed,
             alt: 'Image from URL',
           },

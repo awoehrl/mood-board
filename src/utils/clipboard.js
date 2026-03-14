@@ -51,6 +51,17 @@ export function getFaviconUrl(url) {
   }
 }
 
+export async function uploadImage(base64DataUrl) {
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: base64DataUrl }),
+  })
+  if (!res.ok) throw new Error('Upload failed')
+  const data = await res.json()
+  return data.url
+}
+
 export function compressImage(dataUrl, maxWidth = 1200, quality = 0.7) {
   return new Promise((resolve) => {
     const img = new Image()

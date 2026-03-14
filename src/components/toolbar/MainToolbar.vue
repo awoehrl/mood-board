@@ -64,7 +64,7 @@ function onFileSelected(e) {
         @click="emit('pan-to-zone', zone)"
       >
         <span class="zone-dot" :style="{ background: zone.color }" />
-        {{ zone.name }}
+        <span class="zone-chip-label">{{ zone.name }}</span>
       </button>
 
       <button class="icon-btn" @click="addZone" title="New zone">
@@ -73,6 +73,9 @@ function onFileSelected(e) {
     </div>
 
     <div class="topbar-right">
+      <!-- Connection indicator -->
+      <span class="conn-dot" :class="connected ? 'conn-dot--on' : 'conn-dot--off'" :title="connected ? 'Connected' : 'Disconnected'" />
+
       <UserAvatars
         :users="users" :syncing="syncing" :connected="connected" :board-id="boardId"
         @copy-link="emit('copy-link')"
@@ -81,14 +84,16 @@ function onFileSelected(e) {
       <div class="divider" />
 
       <!-- Zoom -->
-      <button class="icon-btn" @click="emit('zoom-out')">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-      </button>
-      <span class="zoom-pct">{{ zoomPercent }}%</span>
-      <button class="icon-btn" @click="emit('zoom-in')">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-      </button>
-      <button class="text-btn" @click="emit('fit-all')">Fit all</button>
+      <div class="zoom-group">
+        <button class="icon-btn" @click="emit('zoom-out')">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <span class="zoom-pct">{{ zoomPercent }}%</span>
+        <button class="icon-btn" @click="emit('zoom-in')">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <button class="text-btn" @click="emit('fit-all')">Fit all</button>
+      </div>
 
       <div class="divider" />
 
@@ -177,6 +182,16 @@ function onFileSelected(e) {
   flex-shrink: 0;
 }
 
+/* Connection dot */
+.conn-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.conn-dot--on { background: #10b981; }
+.conn-dot--off { background: #ef4444; }
+
 /* Buttons */
 .icon-btn {
   width: 28px;
@@ -205,6 +220,11 @@ function onFileSelected(e) {
   text-align: center;
   font-variant-numeric: tabular-nums;
   user-select: none;
+}
+.zoom-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .divider {
@@ -238,4 +258,20 @@ function onFileSelected(e) {
   align-items: center;
 }
 .dropdown-item:hover { background: var(--hover); }
+
+/* Responsive: hide zone chip labels on small screens */
+@media (max-width: 640px) {
+  .zone-chip-label { display: none; }
+  .zone-chip { padding: 0 4px; }
+}
+
+/* Collapse zoom into overflow on very small screens */
+@media (max-width: 480px) {
+  .zoom-group { display: none; }
+}
+
+/* Touch targets */
+@media (pointer: coarse) {
+  .icon-btn { min-width: 44px; min-height: 44px; }
+}
 </style>

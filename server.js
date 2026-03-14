@@ -12,6 +12,9 @@ const wss = new WebSocketServer({ server, path: '/ws' })
 const PORT = process.env.PORT || 3000
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
+const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'images'
 
 // --- Redis persistence ---
 async function redisGet(key) {
@@ -65,6 +68,40 @@ app.use('/api', (req, res, next) => {
   res.set('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.sendStatus(204)
   next()
+})
+
+// Image upload via Supabase Storage
+app.post('/api/upload', async (req, res) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    return res.status(500).json({ error: 'Supabase not configured' })
+  }
+  try {
+    const { image } = req.body
+    if (!image) return res.status(400).json({ error: 'No image provided' })
+    const base64 = image.replace(/^data:image\/\w+;base64,/, '')
+    const buffer = Buffer.from(base64, 'base64')
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
+    const upload = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${filename}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'image/jpeg',
+        },
+        body: buffer,
+      }
+    )
+    if (!upload.ok) {
+      const err = await upload.text()
+      throw new Error(err)
+    }
+    const url = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${filename}`
+    res.json({ url })
+  } catch (e) {
+    console.error('Supabase upload failed:', e.message)
+    res.status(500).json({ error: 'Upload failed' })
+  }
 })
 
 // Serve built frontend

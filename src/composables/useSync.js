@@ -1,11 +1,14 @@
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useBoardStore } from '../stores/board.js'
+import { useToast } from './useToast.js'
 
 const SAVE_DEBOUNCE_MS = 300
 const BOARD_ID = 'main' // Single fixed board
+const OFFLINE_QUEUE_KEY = 'mood-board-offline-queue'
 
 export function useSync() {
   const store = useBoardStore()
+  const toast = useToast()
   const boardId = ref(BOARD_ID)
   const connected = ref(false)
   const syncing = ref(false)
@@ -15,6 +18,9 @@ export function useSync() {
   let reconnectTimer = null
   let initialized = false
   let serverVersion = -1
+  let wasConnected = false
+
+  const isOffline = computed(() => !connected.value && initialized)
 
   function getLocalKey() {
     return 'mood-board-main'
@@ -35,6 +41,25 @@ export function useSync() {
       }
     } catch { /* ignore */ }
     return false
+  }
+
+  // Offline queue — only stores latest snapshot
+  function saveOfflineQueue(board) {
+    try {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(board))
+    } catch { /* ignore */ }
+  }
+
+  function loadOfflineQueue() {
+    try {
+      const raw = localStorage.getItem(OFFLINE_QUEUE_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch { /* ignore */ }
+    return null
+  }
+
+  function clearOfflineQueue() {
+    localStorage.removeItem(OFFLINE_QUEUE_KEY)
   }
 
   function getWsUrl() {
@@ -58,6 +83,10 @@ export function useSync() {
 
     ws.onopen = () => {
       connected.value = true
+      if (wasConnected) {
+        toast.show('Back online', 'success')
+      }
+      wasConnected = true
     }
 
     ws.onmessage = (e) => {
@@ -65,9 +94,20 @@ export function useSync() {
       try { msg = JSON.parse(e.data) } catch { return }
 
       if (msg.type === 'sync' && msg.board) {
+        // Check if we have queued offline changes
+        const queued = loadOfflineQueue()
+        if (queued && initialized) {
+          // Try to push our offline changes
+          if (ws?.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'update', board: queued, version: serverVersion }))
+            clearOfflineQueue()
+          }
+        }
+
         // Server has data — it's the source of truth
         ignoreNextWatch = true
         store.loadBoard(msg.board)
+        store.clearUndoHistory()
         saveLocal()
         if (msg.version !== undefined) serverVersion = msg.version
         initialized = true
@@ -89,8 +129,12 @@ export function useSync() {
     }
 
     ws.onclose = () => {
+      const wasUp = connected.value
       connected.value = false
       ws = null
+      if (wasUp && initialized) {
+        toast.show('Connection lost', 'error')
+      }
       scheduleReconnect()
     }
 
@@ -112,6 +156,10 @@ export function useSync() {
     syncing.value = true
     if (ws?.readyState === 1) {
       ws.send(JSON.stringify({ type: 'update', board, version: serverVersion }))
+    } else {
+      // Offline — queue for later
+      saveOfflineQueue(board)
+      toast.show('Working offline', 'warning', 2000)
     }
     setTimeout(() => { syncing.value = false }, 200)
   }
@@ -178,5 +226,5 @@ export function useSync() {
     { deep: true }
   )
 
-  return { boardId, connected, syncing, users, exportJson, importJson }
+  return { boardId, connected, syncing, users, isOffline, exportJson, importJson }
 }

@@ -7,11 +7,21 @@ const DEFAULT_ZONE_COLORS = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 ]
 
+const MAX_UNDO = 50
+
 export const useBoardStore = defineStore('board', () => {
   const name = ref('My House Renovation')
   const zones = ref([])
   const selectedZoneId = ref(null)
-  const selectedElementId = ref(null)
+  const selectedElementIds = ref(new Set())
+  const readOnly = ref(false)
+
+  // Backward compat: last selected element
+  const selectedElementId = computed(() => {
+    const ids = selectedElementIds.value
+    if (ids.size === 0) return null
+    return [...ids].at(-1)
+  })
 
   const selectedZone = computed(() =>
     zones.value.find((z) => z.id === selectedZoneId.value) ?? null
@@ -21,6 +31,35 @@ export const useBoardStore = defineStore('board', () => {
     if (!selectedZone.value || !selectedElementId.value) return null
     return selectedZone.value.elements.find((e) => e.id === selectedElementId.value) ?? null
   })
+
+  // Undo/Redo
+  const undoStack = ref([])
+  const redoStack = ref([])
+
+  function pushUndo() {
+    undoStack.value.push(JSON.stringify(exportBoard()))
+    if (undoStack.value.length > MAX_UNDO) undoStack.value.shift()
+    redoStack.value = []
+  }
+
+  function undo() {
+    if (!undoStack.value.length) return
+    redoStack.value.push(JSON.stringify(exportBoard()))
+    const snapshot = undoStack.value.pop()
+    loadBoard(JSON.parse(snapshot))
+  }
+
+  function redo() {
+    if (!redoStack.value.length) return
+    undoStack.value.push(JSON.stringify(exportBoard()))
+    const snapshot = redoStack.value.pop()
+    loadBoard(JSON.parse(snapshot))
+  }
+
+  function clearUndoHistory() {
+    undoStack.value = []
+    redoStack.value = []
+  }
 
   let colorIndex = 0
 
@@ -37,7 +76,7 @@ export const useBoardStore = defineStore('board', () => {
     }
     zones.value.push(zone)
     selectedZoneId.value = zone.id
-    selectedElementId.value = null
+    selectedElementIds.value = new Set()
     return zone
   }
 
@@ -50,7 +89,7 @@ export const useBoardStore = defineStore('board', () => {
     zones.value = zones.value.filter((z) => z.id !== id)
     if (selectedZoneId.value === id) {
       selectedZoneId.value = null
-      selectedElementId.value = null
+      selectedElementIds.value = new Set()
     }
   }
 
@@ -69,7 +108,7 @@ export const useBoardStore = defineStore('board', () => {
     }
     zone.elements.push(el)
     selectedZoneId.value = zoneId
-    selectedElementId.value = el.id
+    selectedElementIds.value = new Set([el.id])
     return el
   }
 
@@ -84,31 +123,49 @@ export const useBoardStore = defineStore('board', () => {
     const zone = zones.value.find((z) => z.id === zoneId)
     if (!zone) return
     zone.elements = zone.elements.filter((e) => e.id !== elementId)
-    if (selectedElementId.value === elementId) {
-      selectedElementId.value = null
-    }
+    selectedElementIds.value.delete(elementId)
+    selectedElementIds.value = new Set(selectedElementIds.value)
+  }
+
+  function deleteSelectedElements() {
+    if (!selectedZoneId.value) return
+    const zone = zones.value.find((z) => z.id === selectedZoneId.value)
+    if (!zone) return
+    if (selectedElementIds.value.size === 0) return
+    zone.elements = zone.elements.filter((e) => !selectedElementIds.value.has(e.id))
+    selectedElementIds.value = new Set()
   }
 
   function selectZone(id) {
     selectedZoneId.value = id
-    selectedElementId.value = null
+    selectedElementIds.value = new Set()
   }
 
-  function selectElement(zoneId, elementId) {
+  function selectElement(zoneId, elementId, additive = false) {
     selectedZoneId.value = zoneId
-    selectedElementId.value = elementId
+    if (additive) {
+      const next = new Set(selectedElementIds.value)
+      if (next.has(elementId)) {
+        next.delete(elementId)
+      } else {
+        next.add(elementId)
+      }
+      selectedElementIds.value = next
+    } else {
+      selectedElementIds.value = new Set([elementId])
+    }
   }
 
   function clearSelection() {
     selectedZoneId.value = null
-    selectedElementId.value = null
+    selectedElementIds.value = new Set()
   }
 
   function loadBoard(data) {
     name.value = data.name || 'My House Renovation'
     zones.value = data.zones || []
     selectedZoneId.value = null
-    selectedElementId.value = null
+    selectedElementIds.value = new Set()
     colorIndex = zones.value.length
   }
 
@@ -124,18 +181,25 @@ export const useBoardStore = defineStore('board', () => {
     zones,
     selectedZoneId,
     selectedElementId,
+    selectedElementIds,
     selectedZone,
     selectedElement,
+    readOnly,
     addZone,
     updateZone,
     deleteZone,
     addElement,
     updateElement,
     deleteElement,
+    deleteSelectedElements,
     selectZone,
     selectElement,
     clearSelection,
     loadBoard,
     exportBoard,
+    pushUndo,
+    undo,
+    redo,
+    clearUndoHistory,
   }
 })

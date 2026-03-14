@@ -27,6 +27,7 @@ function getScale() {
 function onZonePointerDown(e) {
   if (isResizing.value) return
   if (e.target.closest('[data-element]') || e.target.closest('[data-resize]')) return
+  store.pushUndo()
   store.selectZone(props.zone.id)
   isDragging.value = true
   dragOffset = { x: e.clientX / getScale() - props.zone.x, y: e.clientY / getScale() - props.zone.y }
@@ -48,6 +49,7 @@ function onZonePointerMove(e) {
 }
 function onZonePointerUp() { isDragging.value = false; isResizing.value = false; dragOffset = null; resizeStart = null }
 function onResizePointerDown(e) {
+  store.pushUndo()
   isResizing.value = true
   resizeStart = { clientX: e.clientX, clientY: e.clientY, width: props.zone.width, height: props.zone.height }
   e.stopPropagation()
@@ -59,10 +61,38 @@ function saveName() {
   isEditingName.value = false
 }
 function onElementPointerDown(e, el) {
-  store.selectElement(props.zone.id, el.id)
+  store.pushUndo()
+  const additive = e.shiftKey
+  store.selectElement(props.zone.id, el.id, additive)
   e.stopPropagation()
-  const s = getScale(), sx = e.clientX, sy = e.clientY, ox = el.x, oy = el.y
-  const onMove = (ev) => store.updateElement(props.zone.id, el.id, { x: ox + (ev.clientX - sx) / s, y: oy + (ev.clientY - sy) / s })
+
+  // If the element is in the current selection, move ALL selected elements
+  const selected = store.selectedElementIds
+  const movingIds = selected.has(el.id) ? [...selected] : [el.id]
+
+  const s = getScale()
+  const sx = e.clientX, sy = e.clientY
+
+  // Capture initial positions for all moving elements
+  const zone = props.zone
+  const initials = {}
+  for (const id of movingIds) {
+    const elem = zone.elements.find((x) => x.id === id)
+    if (elem) initials[id] = { x: elem.x, y: elem.y }
+  }
+
+  const onMove = (ev) => {
+    const dx = (ev.clientX - sx) / s
+    const dy = (ev.clientY - sy) / s
+    for (const id of movingIds) {
+      if (initials[id]) {
+        store.updateElement(props.zone.id, id, {
+          x: initials[id].x + dx,
+          y: initials[id].y + dy,
+        })
+      }
+    }
+  }
   const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
@@ -100,7 +130,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         v-for="el in zone.elements" :key="el.id"
         data-element
         class="element-wrap group"
-        :class="{ selected: store.selectedElementId === el.id }"
+        :class="{ selected: store.selectedElementIds.has(el.id) }"
         :style="{ left: el.x + 'px', top: el.y + 'px', width: el.width + 'px', height: el.height + 'px' }"
         @pointerdown="onElementPointerDown($event, el)"
       >
@@ -203,4 +233,9 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   opacity: 0.5;
 }
 .zone-resize:hover { opacity: 1; }
+
+/* Touch targets */
+@media (pointer: coarse) {
+  .zone-resize { width: 32px; height: 32px; }
+}
 </style>

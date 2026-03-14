@@ -2,20 +2,22 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useBoardStore } from './stores/board.js'
 import { useSync } from './composables/useSync.js'
+import { useToast } from './composables/useToast.js'
 import BoardCanvas from './components/canvas/BoardCanvas.vue'
 import MainToolbar from './components/toolbar/MainToolbar.vue'
 import ElementToolbar from './components/toolbar/ElementToolbar.vue'
 import ImageSourceModal from './components/modals/ImageSourceModal.vue'
 import ColorPickerModal from './components/modals/ColorPickerModal.vue'
 import OnboardingModal from './components/modals/OnboardingModal.vue'
+import ToastContainer from './components/ui/ToastContainer.vue'
 
 const store = useBoardStore()
 const { boardId, connected, syncing, users, exportJson, importJson } = useSync()
+const toast = useToast()
 
 const boardCanvas = ref(null)
 const showColorPicker = ref(false)
 const imageSourceModal = ref(null)
-const linkCopied = ref(false)
 
 const needsOnboarding = computed(() => !localStorage.getItem('mood-board-user-name'))
 const showOnboarding = ref(needsOnboarding.value)
@@ -49,7 +51,7 @@ async function onImport(file) {
   try {
     await importJson(file)
   } catch (e) {
-    alert('Failed to import: ' + e.message)
+    toast.show('Failed to import: ' + e.message, 'error')
   }
 }
 
@@ -59,14 +61,26 @@ function onShowImageSourceModal({ zoneId, elementId }) {
 
 function onCopyLink() {
   navigator.clipboard.writeText(window.location.href)
-  linkCopied.value = true
-  setTimeout(() => { linkCopied.value = false }, 2000)
+  toast.show('Link copied to clipboard', 'success')
 }
 
 function onKeyDown(e) {
+  // Undo/Redo
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    store.undo()
+    return
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
+    e.preventDefault()
+    store.redo()
+    return
+  }
+
   if (e.key === 'Delete' || (e.key === 'Backspace' && !isEditing())) {
-    if (store.selectedElementId && store.selectedZoneId) {
-      store.deleteElement(store.selectedZoneId, store.selectedElementId)
+    if (store.selectedElementIds.size > 0 && store.selectedZoneId) {
+      store.pushUndo()
+      store.deleteSelectedElements()
     }
   }
   if (e.key === 'Escape') {
@@ -115,16 +129,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 
     <ElementToolbar @show-color-picker="showColorPicker = true" />
 
-    <!-- Toast -->
-    <Transition name="toast">
-      <div
-        v-if="linkCopied"
-        class="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 py-2 text-[13px] rounded-lg shadow-lg"
-        style="background: var(--text); color: white;"
-      >
-        Link copied to clipboard
-      </div>
-    </Transition>
+    <ToastContainer />
 
     <ImageSourceModal
       v-if="imageSourceModal"
@@ -136,8 +141,3 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
     <ColorPickerModal v-if="showColorPicker" @close="showColorPicker = false" />
   </div>
 </template>
-
-<style>
-.toast-enter-active, .toast-leave-active { transition: all 0.2s ease; }
-.toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 8px); }
-</style>
