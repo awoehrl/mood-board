@@ -5,13 +5,6 @@ export function screenToCanvas(screenX, screenY, pan, zoom) {
   }
 }
 
-export function canvasToScreen(canvasX, canvasY, pan, zoom) {
-  return {
-    x: canvasX * zoom + pan.x,
-    y: canvasY * zoom + pan.y,
-  }
-}
-
 export function hitTestZones(canvasX, canvasY, zones) {
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i]

@@ -161,25 +161,25 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   position: absolute; inset: 0;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   transition: box-shadow 0.15s, border-color 0.15s;
 }
 .zone-bg.selected {
-  box-shadow: 0 0 0 1px var(--border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 8%, transparent);
 }
 .zone:hover .zone-bg:not(.selected) {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .zone-header {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  height: 32px;
+  gap: 8px;
+  padding: 8px 12px;
+  height: 36px;
 }
-.zone-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.zone-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .zone-name {
   flex: 1;
   font-size: 13px;
@@ -189,6 +189,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 .zone-name-input {
   flex: 1;
@@ -197,16 +198,18 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   color: var(--text);
   outline: none;
   padding: 0;
+  letter-spacing: -0.01em;
 }
 .zone-count {
   font-size: 11px;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .zone-body {
   position: relative;
   overflow: hidden;
-  height: calc(100% - 32px);
+  height: calc(100% - 36px);
 }
 
 .element-wrap {
@@ -216,14 +219,14 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 .element-wrap.selected {
   z-index: 10;
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-radius: 4px;
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .zone-resize {
   position: absolute;
   bottom: 0; right: 0;
-  width: 16px; height: 16px;
+  width: 18px; height: 18px;
   cursor: se-resize;
   display: flex;
   align-items: center;
@@ -234,11 +237,10 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 }
 .zone-resize.visible,
 .zone:hover .zone-resize {
-  opacity: 0.5;
+  opacity: 0.4;
 }
 .zone-resize:hover { opacity: 1; }
 
-/* Touch targets */
 @media (pointer: coarse) {
   .zone-resize { width: 32px; height: 32px; }
 }

@@ -271,11 +271,6 @@ function broadcastUsers(room) {
   }
 }
 
-function countContent(b) {
-  const zones = b?.zones || []
-  return zones.reduce((n, z) => n + (z.elements?.length || 0), 0)
-}
-
 wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, 'http://localhost')
   const boardId = url.searchParams.get('board') || 'main'

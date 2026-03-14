@@ -170,7 +170,7 @@ defineExpose({ canvas })
 <style scoped>
 .viewport {
   position: absolute;
-  top: 45px;
+  top: 48px;
   left: 0; right: 0; bottom: 0;
   overflow: hidden;
   background: var(--canvas-bg);

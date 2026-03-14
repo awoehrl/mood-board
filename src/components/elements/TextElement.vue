@@ -25,14 +25,12 @@ function autoGrow() {
   el.style.height = 'auto'
   const newHeight = el.scrollHeight
   el.style.height = newHeight + 'px'
-  // Update parent element height if textarea grew beyond current
-  const minH = newHeight + 18 // padding
+  const minH = newHeight + 18
   if (minH > props.element.height) {
     store.updateElement(props.zoneId, props.element.id, { height: minH })
   }
 }
 
-// Scroll textarea into view when virtual keyboard appears
 let vvHandler = null
 onMounted(() => {
   if (window.visualViewport) {
@@ -68,9 +66,9 @@ onUnmounted(() => {
 .text-el {
   width: 100%; height: 100%;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 .text-el-edit {
   width: 100%;

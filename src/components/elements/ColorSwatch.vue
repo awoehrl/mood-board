@@ -30,7 +30,7 @@ function saveLabel() {
 .swatch-el {
   width: 100%; height: 100%;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   overflow: hidden;
   display: flex;
@@ -38,15 +38,15 @@ function saveLabel() {
 }
 .swatch-color { flex: 1; min-height: 0; }
 .swatch-info {
-  padding: 4px 8px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border-top: 1px solid var(--border);
 }
 .swatch-hex {
   font-size: 10px;
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, "SF Mono", monospace;
   color: var(--text-muted);
   text-transform: uppercase;
 }

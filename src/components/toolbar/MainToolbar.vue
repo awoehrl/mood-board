@@ -39,7 +39,6 @@ function onFileSelected(e) {
 <template>
   <header class="topbar">
     <div class="topbar-left">
-      <!-- Board name -->
       <input
         v-if="isEditingName"
         v-model="editName"
@@ -53,18 +52,17 @@ function onFileSelected(e) {
         {{ store.name }}
       </button>
 
-      <span class="breadcrumb-sep">/</span>
+      <span class="sep">/</span>
 
-      <!-- Zone chips -->
       <button
         v-for="zone in store.zones"
         :key="zone.id"
         class="zone-chip"
-        :class="{ 'zone-chip--active': store.selectedZoneId === zone.id }"
+        :class="{ active: store.selectedZoneId === zone.id }"
         @click="emit('pan-to-zone', zone)"
       >
-        <span class="zone-dot" :style="{ background: zone.color }" />
-        <span class="zone-chip-label">{{ zone.name }}</span>
+        <span class="chip-dot" :style="{ background: zone.color }" />
+        <span class="chip-label">{{ zone.name }}</span>
       </button>
 
       <button class="icon-btn" @click="addZone" title="New zone">
@@ -73,8 +71,7 @@ function onFileSelected(e) {
     </div>
 
     <div class="topbar-right">
-      <!-- Connection indicator -->
-      <span class="conn-dot" :class="connected ? 'conn-dot--on' : 'conn-dot--off'" :title="connected ? 'Connected' : 'Disconnected'" />
+      <span class="conn-dot" :class="connected ? 'on' : 'off'" />
 
       <UserAvatars
         :users="users" :syncing="syncing" :connected="connected" :board-id="boardId"
@@ -83,7 +80,6 @@ function onFileSelected(e) {
 
       <div class="divider" />
 
-      <!-- Zoom -->
       <div class="zoom-group">
         <button class="icon-btn" @click="emit('zoom-out')">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -92,20 +88,21 @@ function onFileSelected(e) {
         <button class="icon-btn" @click="emit('zoom-in')">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
-        <button class="text-btn" @click="emit('fit-all')">Fit all</button>
+        <button class="text-btn" @click="emit('fit-all')">Fit</button>
       </div>
 
       <div class="divider" />
 
-      <!-- Menu -->
       <div class="menu-wrap">
         <button class="icon-btn" @click="showMenu = !showMenu" title="More">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="3" r="1" fill="currentColor"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="11" r="1" fill="currentColor"/></svg>
         </button>
-        <div v-if="showMenu" class="dropdown" @mouseleave="showMenu = false">
-          <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
-          <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
-        </div>
+        <Transition name="dropdown">
+          <div v-if="showMenu" class="dropdown" @mouseleave="showMenu = false">
+            <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
+            <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
+          </div>
+        </Transition>
       </div>
       <input ref="fileInput" type="file" accept=".json" class="hidden" @change="onFileSelected" />
     </div>
@@ -117,104 +114,107 @@ function onFileSelected(e) {
   position: absolute;
   top: 0; left: 0; right: 0;
   z-index: 30;
-  height: 45px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 12px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
 }
 .topbar-left, .topbar-right {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
-/* Board name */
 .name-btn {
-  height: 28px;
-  padding: 0 6px;
+  height: 30px;
+  padding: 0 8px;
   font-size: 14px;
   font-weight: 600;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
+  letter-spacing: -0.02em;
 }
 .name-btn:hover { background: var(--hover); }
 .name-input {
-  height: 28px;
-  padding: 0 6px;
+  height: 30px;
+  padding: 0 8px;
   font-size: 14px;
   font-weight: 600;
   outline: none;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--hover);
+  letter-spacing: -0.02em;
 }
 
-/* Breadcrumb */
-.breadcrumb-sep {
-  color: var(--border-heavy);
+.sep {
+  color: var(--text-muted);
   font-size: 14px;
   margin: 0 2px;
   font-weight: 300;
 }
 
-/* Zone chips */
 .zone-chip {
-  height: 26px;
+  height: 28px;
   padding: 0 8px;
   font-size: 12px;
+  font-weight: 500;
   color: var(--text-secondary);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   white-space: nowrap;
+  transition: background 0.1s;
 }
 .zone-chip:hover { background: var(--hover); }
-.zone-chip--active {
+.zone-chip.active {
   background: var(--active);
   color: var(--text);
 }
-.zone-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
-/* Connection dot */
 .conn-dot {
-  width: 8px; height: 8px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
   margin-right: 4px;
 }
-.conn-dot--on { background: #10b981; }
-.conn-dot--off { background: #ef4444; }
+.conn-dot.on { background: #34d399; }
+.conn-dot.off { background: var(--red); }
 
-/* Buttons */
 .icon-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
+  transition: background 0.1s;
 }
-.icon-btn:hover { background: var(--hover); }
+.icon-btn:hover { background: var(--hover); color: var(--text); }
 
 .text-btn {
-  height: 26px;
-  padding: 0 6px;
+  height: 28px;
+  padding: 0 8px;
   font-size: 12px;
+  font-weight: 500;
   color: var(--text-secondary);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
+  transition: background 0.1s;
 }
 .text-btn:hover { background: var(--hover); }
 
 .zoom-pct {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   width: 38px;
   text-align: center;
@@ -224,53 +224,50 @@ function onFileSelected(e) {
 .zoom-group {
   display: flex;
   align-items: center;
-  gap: 2px;
 }
 
 .divider {
   width: 1px;
-  height: 16px;
+  height: 18px;
   background: var(--border);
   margin: 0 6px;
 }
 
-/* Dropdown */
 .menu-wrap { position: relative; }
 .dropdown {
   position: absolute;
   right: 0;
-  top: 34px;
+  top: 38px;
   width: 180px;
   padding: 4px;
   background: var(--bg);
-  border-radius: 4px;
-  box-shadow: 0 0 0 1px var(--border), 0 3px 6px rgba(0,0,0,0.08), 0 9px 24px rgba(0,0,0,0.06);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 .dropdown-item {
   width: 100%;
-  height: 28px;
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 10px;
   font-size: 13px;
   color: var(--text);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   text-align: left;
   display: flex;
   align-items: center;
+  transition: background 0.1s;
 }
 .dropdown-item:hover { background: var(--hover); }
 
-/* Responsive: hide zone chip labels on small screens */
+.dropdown-enter-active, .dropdown-leave-active { transition: all 0.15s ease; }
+.dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px); }
+
 @media (max-width: 640px) {
-  .zone-chip-label { display: none; }
+  .chip-label { display: none; }
   .zone-chip { padding: 0 4px; }
 }
-
-/* Collapse zoom into overflow on very small screens */
 @media (max-width: 480px) {
   .zoom-group { display: none; }
 }
-
-/* Touch targets */
 @media (pointer: coarse) {
   .icon-btn { min-width: 44px; min-height: 44px; }
 }

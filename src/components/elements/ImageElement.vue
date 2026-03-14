@@ -32,7 +32,6 @@ function saveUrl() {
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
     </div>
 
-    <!-- URL bar -->
     <div v-if="element.data.sourceUrl && !isEditingUrl" class="img-el-bar">
       <a :href="element.data.sourceUrl" target="_blank" rel="noopener" class="img-el-link" @pointerdown.stop @click.stop>
         {{ getDomain(element.data.sourceUrl) }}
@@ -42,7 +41,6 @@ function saveUrl() {
       Add source...
     </div>
 
-    <!-- Editor -->
     <div v-if="isEditingUrl" class="img-el-editor" @pointerdown.stop>
       <input v-model="editUrl" type="url" placeholder="https://..." class="img-el-input"
         @blur="saveUrl" @keydown.enter="saveUrl" @keydown.escape="isEditingUrl = false" autofocus />
@@ -53,7 +51,7 @@ function saveUrl() {
 <style scoped>
 .img-el {
   width: 100%; height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   position: relative;
   background: var(--canvas-bg);
@@ -67,10 +65,10 @@ function saveUrl() {
 }
 .img-el-bar {
   position: absolute; bottom: 0; left: 0; right: 0;
-  padding: 16px 8px 5px;
-  background: linear-gradient(transparent, rgba(0,0,0,0.5));
+  padding: 20px 8px 6px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.45));
   font-size: 11px;
-  color: rgba(255,255,255,0.75);
+  color: rgba(255,255,255,0.7);
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -90,7 +88,7 @@ function saveUrl() {
   padding: 0 8px;
   font-size: 12px;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   outline: none;
 }
 .img-el-input:focus { border-color: var(--accent); }

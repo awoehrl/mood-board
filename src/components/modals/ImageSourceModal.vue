@@ -34,14 +34,18 @@ function save() {
 
 <style scoped>
 .backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: var(--overlay); }
-.card { background: var(--bg); border-radius: 4px; box-shadow: 0 0 0 1px var(--border), 0 8px 24px rgba(0,0,0,0.12); padding: 20px; width: 380px; }
-.heading { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 4px; }
-.desc { font-size: 13px; color: var(--text-secondary); margin: 0 0 14px; }
-.input { width: 100%; height: 32px; border: 1px solid var(--border); border-radius: 4px; padding: 0 10px; font-size: 13px; color: var(--text); outline: none; }
-.input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(46,170,220,0.15); }
-.actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px; }
-.btn-ghost { height: 28px; padding: 0 10px; font-size: 13px; color: var(--text-secondary); border-radius: 4px; }
+.card { background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 24px; width: 380px; }
+.heading { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 4px; letter-spacing: -0.01em; }
+.desc { font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; }
+.input {
+  width: 100%; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0 10px; font-size: 13px; color: var(--text); outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.btn-ghost { height: 32px; padding: 0 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); border-radius: var(--radius-sm); transition: background 0.1s; }
 .btn-ghost:hover { background: var(--hover); }
-.btn-primary { height: 28px; padding: 0 10px; font-size: 13px; color: white; background: var(--accent); border-radius: 4px; }
+.btn-primary { height: 32px; padding: 0 14px; font-size: 13px; font-weight: 500; color: white; background: var(--accent); border-radius: var(--radius-sm); transition: background 0.1s; }
 .btn-primary:hover { background: var(--accent-hover); }
 </style>

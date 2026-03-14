@@ -43,14 +43,15 @@ function saveLabel() {
 .link-el {
   width: 100%; height: 100%;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   display: flex;
   align-items: center;
-  padding: 0 10px;
-  gap: 8px;
+  padding: 0 12px;
+  gap: 10px;
+  transition: background 0.1s;
 }
-.link-el:hover { background: var(--canvas-bg); }
+.link-el:hover { background: var(--bg-raised); }
 .link-icon {
   width: 20px; height: 20px;
   flex-shrink: 0;
@@ -65,12 +66,10 @@ function saveLabel() {
   display: block;
   font-size: 13px;
   color: var(--text);
-  text-decoration: underline;
-  text-decoration-color: var(--border);
-  text-underline-offset: 2px;
+  text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.link-title:hover { text-decoration-color: var(--text-secondary); }
+.link-title:hover { color: var(--accent); }
 .link-domain {
   display: block;
   font-size: 11px;

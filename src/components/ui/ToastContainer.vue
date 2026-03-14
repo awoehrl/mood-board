@@ -3,10 +3,10 @@ import { useToast } from '../../composables/useToast.js'
 const { toasts, dismiss } = useToast()
 
 const borderColors = {
-  info: '#3b82f6',
-  success: '#10b981',
-  error: '#ef4444',
-  warning: '#f59e0b',
+  info: '#0066ff',
+  success: '#30a46c',
+  error: '#e5484d',
+  warning: '#e07c49',
 }
 </script>
 
@@ -40,13 +40,14 @@ const borderColors = {
 .toast-item {
   pointer-events: auto;
   cursor: pointer;
-  background: var(--bg, #fff);
-  color: var(--text, #1a1a1a);
+  background: var(--bg);
+  color: var(--text);
   font-size: 13px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  border-left: 3px solid #3b82f6;
-  box-shadow: 0 0 0 1px var(--border, #e5e5e5), 0 4px 12px rgba(0,0,0,0.08);
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border-left: 3px solid;
+  box-shadow: var(--shadow-lg);
   white-space: nowrap;
 }
 .toast-enter-active, .toast-leave-active { transition: all 0.2s ease; }

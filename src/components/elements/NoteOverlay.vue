@@ -35,14 +35,16 @@ function saveNote() {
       </svg>
     </button>
 
-    <div v-if="showNote" class="note-popover" @pointerdown.stop>
-      <textarea v-if="isEditing" v-model="editNote" class="note-textarea" placeholder="Write a note..."
-        @blur="saveNote" @keydown.escape="saveNote" autofocus />
-      <template v-else>
-        <p class="note-text">{{ element.note }}</p>
-        <button class="note-edit-btn" @click="startEdit">Edit</button>
-      </template>
-    </div>
+    <Transition name="note">
+      <div v-if="showNote" class="note-popover" @pointerdown.stop>
+        <textarea v-if="isEditing" v-model="editNote" class="note-textarea" placeholder="Write a note..."
+          @blur="saveNote" @keydown.escape="saveNote" autofocus />
+        <template v-else>
+          <p class="note-text">{{ element.note }}</p>
+          <button class="note-edit-btn" @click="startEdit">Edit</button>
+        </template>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -50,14 +52,14 @@ function saveNote() {
 .note-root { position: absolute; top: -4px; right: -4px; z-index: 10; }
 
 .note-btn {
-  width: 18px; height: 18px;
+  width: 20px; height: 20px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   transition: opacity 0.15s;
 }
 .note-btn.has-note {
-  background: #f6d365;
-  color: #5c4813;
+  background: #fbbf24;
+  color: #78350f;
   opacity: 1;
 }
 .note-btn.no-note {
@@ -67,24 +69,25 @@ function saveNote() {
   opacity: 0;
 }
 .group:hover .note-btn.no-note { opacity: 1; }
-.note-btn.no-note:hover { background: var(--canvas-bg); }
+.note-btn.no-note:hover { background: var(--bg-raised); }
 
 .note-popover {
   position: absolute;
-  right: 0; top: 22px;
+  right: 0; top: 24px;
   width: 200px;
-  padding: 8px;
+  padding: 10px;
   background: var(--bg);
-  border-radius: 4px;
-  box-shadow: 0 0 0 1px var(--border), 0 3px 6px rgba(0,0,0,0.08), 0 9px 24px rgba(0,0,0,0.06);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 .note-textarea {
   width: 100%; height: 64px;
   font-size: 12px; line-height: 1.5;
   color: var(--text);
-  resize: none; outline: none; padding: 4px;
+  resize: none; outline: none; padding: 6px;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s;
 }
 .note-textarea:focus { border-color: var(--accent); }
 .note-text {
@@ -95,12 +98,15 @@ function saveNote() {
 }
 .note-edit-btn {
   font-size: 11px;
+  font-weight: 500;
   color: var(--accent);
-  margin-top: 4px;
+  margin-top: 6px;
 }
 .note-edit-btn:hover { text-decoration: underline; }
 
-/* Touch targets */
+.note-enter-active, .note-leave-active { transition: all 0.15s ease; }
+.note-enter-from, .note-leave-to { opacity: 0; transform: translateY(-4px); }
+
 @media (pointer: coarse) {
   .note-btn { width: 32px; height: 32px; }
 }

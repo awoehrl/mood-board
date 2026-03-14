@@ -9,8 +9,6 @@ function getInitials(name) {
 
 <template>
   <div class="presence">
-    <div class="status-dot" :class="connected ? 'online' : 'offline'" />
-
     <div class="avatars">
       <div
         v-for="user in users" :key="user.id"
@@ -25,9 +23,6 @@ function getInitials(name) {
 
 <style scoped>
 .presence { display: flex; align-items: center; gap: 8px; }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; }
-.status-dot.online { background: #4dab9a; }
-.status-dot.offline { background: var(--text-muted); }
 .avatars { display: flex; margin-left: -2px; }
 .avatar {
   width: 24px; height: 24px;
@@ -38,9 +33,10 @@ function getInitials(name) {
   margin-left: -4px;
 }
 .share-btn {
-  height: 26px; padding: 0 8px;
-  font-size: 12px; color: var(--text-secondary);
-  border-radius: 3px;
+  height: 28px; padding: 0 10px;
+  font-size: 12px; font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: 6px;
 }
 .share-btn:hover { background: var(--hover); }
 </style>
