@@ -168,8 +168,10 @@ const rooms = new Map()
 
 async function getRoom(boardId) {
   if (!rooms.has(boardId)) {
-    const board = await redisGet(`board:${boardId}`)
-    rooms.set(boardId, { clients: new Set(), board })
+    const data = await redisGet(`board:${boardId}`)
+    const version = data?._version || 0
+    if (data) delete data._version
+    rooms.set(boardId, { clients: new Set(), board: data, version })
   }
   return rooms.get(boardId)
 }
@@ -195,9 +197,6 @@ function broadcastUsers(room) {
   }
 }
 
-// Track highest known element count per board (survives in-process room resets)
-const peakContent = new Map()
-
 function countContent(b) {
   const zones = b?.zones || []
   return zones.reduce((n, z) => n + (z.elements?.length || 0), 0)
@@ -214,15 +213,9 @@ wss.on('connection', async (ws, req) => {
   const client = { ws, userId, name, color }
   room.clients.add(client)
 
-  // Track peak content count
-  if (room.board) {
-    const count = countContent(room.board)
-    peakContent.set(boardId, Math.max(peakContent.get(boardId) || 0, count))
-  }
-
   // Always send what we have — Redis is source of truth
   if (room.board) {
-    ws.send(JSON.stringify({ type: 'sync', board: room.board }))
+    ws.send(JSON.stringify({ type: 'sync', board: room.board, version: room.version }))
   } else {
     ws.send(JSON.stringify({ type: 'no-data' }))
   }
@@ -234,24 +227,18 @@ wss.on('connection', async (ws, req) => {
     try { msg = JSON.parse(raw) } catch { return }
 
     if (msg.type === 'update' && msg.board) {
-      const incoming = countContent(msg.board)
-      const current = countContent(room.board)
-      const peak = peakContent.get(boardId) || 0
-
-      // Never accept a board with significantly fewer elements than we've ever seen
-      // (allows small deletions but prevents full wipes)
-      if (incoming < peak * 0.5 && peak > 2) {
-        console.log(`Rejected update: ${incoming} elements < 50% of peak ${peak}`)
-        // Re-send the correct state to this client
-        if (room.board) ws.send(JSON.stringify({ type: 'sync', board: room.board }))
+      // Only accept updates that reference the current version (or if server has nothing)
+      // This prevents stale clients from overwriting after a deploy
+      if (room.board && msg.version !== undefined && msg.version < room.version) {
+        console.log(`Rejected stale update: client v${msg.version} < server v${room.version}`)
+        ws.send(JSON.stringify({ type: 'sync', board: room.board, version: room.version }))
         return
       }
 
-      // Accept the update
       room.board = msg.board
-      peakContent.set(boardId, Math.max(peak, incoming))
-      broadcast(room, { type: 'sync', board: msg.board }, ws)
-      debouncedSave(boardId, msg.board)
+      room.version = (room.version || 0) + 1
+      broadcast(room, { type: 'sync', board: msg.board, version: room.version }, ws)
+      debouncedSave(boardId, { ...msg.board, _version: room.version })
     }
   })
 

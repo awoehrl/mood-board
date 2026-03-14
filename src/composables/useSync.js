@@ -14,6 +14,7 @@ export function useSync() {
   let ignoreNextWatch = false
   let reconnectTimer = null
   let initialized = false
+  let serverVersion = -1
 
   function getLocalKey() {
     return 'mood-board-main'
@@ -68,6 +69,7 @@ export function useSync() {
         ignoreNextWatch = true
         store.loadBoard(msg.board)
         saveLocal()
+        if (msg.version !== undefined) serverVersion = msg.version
         initialized = true
         setTimeout(() => { ignoreNextWatch = false }, 100)
       }
@@ -109,7 +111,7 @@ export function useSync() {
     if (!board.zones?.length) return // Never push empty board
     syncing.value = true
     if (ws?.readyState === 1) {
-      ws.send(JSON.stringify({ type: 'update', board }))
+      ws.send(JSON.stringify({ type: 'update', board, version: serverVersion }))
     }
     setTimeout(() => { syncing.value = false }, 200)
   }
