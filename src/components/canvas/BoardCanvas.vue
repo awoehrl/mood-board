@@ -32,13 +32,24 @@ function onWheel(e) {
   }
 }
 
+function isCanvasBackground(target) {
+  // True if the touch/click is on the viewport or dot grid, not on a zone/element
+  return target === viewport.value || target.classList.contains('dots') || target.hasAttribute('data-canvas-layer')
+}
+
 function onPointerDown(e) {
   if (e.button === 1 || (e.button === 0 && spaceHeld.value)) {
     isPanning.value = true
     panStart = { x: e.clientX - canvas.panX.value, y: e.clientY - canvas.panY.value }
     viewport.value.setPointerCapture(e.pointerId)
     e.preventDefault()
-  } else if (e.button === 0 && e.target === viewport.value) {
+  } else if (e.button === 0 && e.pointerType === 'touch' && isCanvasBackground(e.target)) {
+    // Single-finger touch on canvas background → pan
+    isPanning.value = true
+    panStart = { x: e.clientX - canvas.panX.value, y: e.clientY - canvas.panY.value }
+    viewport.value.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  } else if (e.button === 0 && isCanvasBackground(e.target)) {
     store.clearSelection()
   }
 }
@@ -163,6 +174,7 @@ defineExpose({ canvas })
   left: 0; right: 0; bottom: 0;
   overflow: hidden;
   background: var(--canvas-bg);
+  touch-action: none;
 }
 .dots {
   position: absolute;
