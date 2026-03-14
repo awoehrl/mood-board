@@ -46,6 +46,58 @@ app.post('/api/board/:id', (req, res) => {
   res.json({ ok: true })
 })
 
+// API: Add a single element to a board zone
+app.post('/api/board/:id/add', (req, res) => {
+  const boardId = req.params.id
+  const room = getRoom(boardId)
+  if (!room.board?.zones?.length) {
+    return res.status(404).json({ error: 'Board has no zones' })
+  }
+  const { zoneId, url, text, title } = req.body
+  const zone = zoneId
+    ? room.board.zones.find(z => z.id === zoneId)
+    : room.board.zones[0]
+  if (!zone) return res.status(404).json({ error: 'Zone not found' })
+
+  const content = url || text || title || ''
+  const isImage = /\.(jpe?g|png|gif|webp|svg|avif)/i.test(content)
+  const isUrl = /^https?:\/\//i.test(content)
+
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
+  let element
+
+  if (isImage) {
+    element = {
+      id, type: 'image', x: 20, y: 40 + zone.elements.length * 30,
+      width: 200, height: 150, note: null,
+      data: { src: content, sourceUrl: content, alt: title || '' }
+    }
+  } else if (isUrl) {
+    element = {
+      id, type: 'link', x: 20, y: 40 + zone.elements.length * 30,
+      width: 200, height: 40, note: null,
+      data: { url: content, label: title || content }
+    }
+  } else {
+    element = {
+      id, type: 'text', x: 20, y: 40 + zone.elements.length * 30,
+      width: 200, height: 60, note: null,
+      data: { content: content || title }
+    }
+  }
+
+  zone.elements.push(element)
+  broadcast(room, { type: 'sync', board: room.board })
+  res.json({ ok: true, zone: zone.name, type: element.type })
+})
+
+// API: List zones for a board (used by shortcuts)
+app.get('/api/board/:id/zones', (req, res) => {
+  const room = rooms.get(req.params.id)
+  if (!room?.board?.zones) return res.status(404).json({ error: 'Board not found' })
+  res.json(room.board.zones.map(z => ({ id: z.id, name: z.name })))
+})
+
 // Share target page
 app.get('/share', (req, res) => {
   res.sendFile(join(__dirname, 'dist', 'share.html'))
