@@ -157,6 +157,7 @@ export function useSync() {
     syncing.value = true
     if (ws?.readyState === 1) {
       ws.send(JSON.stringify({ type: 'update', board, version: serverVersion }))
+      serverVersion++ // Server will increment, so we must track it
     } else {
       // Offline — queue for later
       saveOfflineQueue(board)
