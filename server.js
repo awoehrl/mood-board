@@ -3,7 +3,6 @@ import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -11,45 +10,51 @@ const server = createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws' })
 
 const PORT = process.env.PORT || 3000
-const DATA_DIR = join(__dirname, 'data')
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
 
-// Ensure data directory exists
-try { mkdirSync(DATA_DIR, { recursive: true }) } catch {}
-
-// --- File persistence ---
-function boardFile(boardId) {
-  // Sanitize board ID for filesystem safety
-  return join(DATA_DIR, `${boardId.replace(/[^a-zA-Z0-9-]/g, '')}.json`)
-}
-
-function saveToDisk(boardId, board) {
+// --- Redis persistence ---
+async function redisGet(key) {
+  if (!REDIS_URL) return null
   try {
-    writeFileSync(boardFile(boardId), JSON.stringify(board))
+    const res = await fetch(`${REDIS_URL}/get/${key}`, {
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
+    })
+    const data = await res.json()
+    return data.result ? JSON.parse(data.result) : null
   } catch (e) {
-    console.error('Failed to save board to disk:', e.message)
-  }
-}
-
-function loadFromDisk(boardId) {
-  try {
-    const raw = readFileSync(boardFile(boardId), 'utf-8')
-    return JSON.parse(raw)
-  } catch {
+    console.error('Redis GET failed:', e.message)
     return null
   }
 }
 
-// Debounced disk saves per board
+async function redisSet(key, value) {
+  if (!REDIS_URL) return
+  try {
+    await fetch(`${REDIS_URL}/set/${key}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${REDIS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(JSON.stringify(value))
+    })
+  } catch (e) {
+    console.error('Redis SET failed:', e.message)
+  }
+}
+
+// Debounced saves per board
 const saveTimers = new Map()
 function debouncedSave(boardId, board) {
   clearTimeout(saveTimers.get(boardId))
-  saveTimers.set(boardId, setTimeout(() => saveToDisk(boardId, board), 1000))
+  saveTimers.set(boardId, setTimeout(() => redisSet(`board:${boardId}`, board), 500))
 }
 
-// JSON body parsing for API
+// JSON body parsing
 app.use(express.json({ limit: '10mb' }))
 
-// CORS for API endpoints (allows transfer from localhost)
+// CORS for API
 app.use('/api', (req, res, next) => {
   res.set('Access-Control-Allow-Origin', '*')
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -62,9 +67,9 @@ app.use('/api', (req, res, next) => {
 app.use(express.static(join(__dirname, 'dist')))
 
 // API: Get board data
-app.get('/api/board/:id', (req, res) => {
+app.get('/api/board/:id', async (req, res) => {
   const room = rooms.get(req.params.id)
-  const board = room?.board || loadFromDisk(req.params.id)
+  const board = room?.board || await redisGet(`board:${req.params.id}`)
   if (board) {
     res.json(board)
   } else {
@@ -73,9 +78,9 @@ app.get('/api/board/:id', (req, res) => {
 })
 
 // API: Push board data (overwrites)
-app.post('/api/board/:id', (req, res) => {
+app.post('/api/board/:id', async (req, res) => {
   const boardId = req.params.id
-  const room = getRoom(boardId)
+  const room = await getRoom(boardId)
   room.board = req.body
   broadcast(room, { type: 'sync', board: room.board })
   debouncedSave(boardId, room.board)
@@ -83,14 +88,13 @@ app.post('/api/board/:id', (req, res) => {
 })
 
 // API: Add a single element to a board zone
-app.post('/api/board/:id/add', (req, res) => {
+app.post('/api/board/:id/add', async (req, res) => {
   const boardId = req.params.id
-  const room = getRoom(boardId)
+  const room = await getRoom(boardId)
   if (!room.board?.zones?.length) {
     return res.status(404).json({ error: 'Board has no zones yet. Open the app and create a zone first.' })
   }
   const { zoneId, zoneName, url, text, title } = req.body
-  // Find zone by ID, name, or default to first
   const zone = zoneId
     ? room.board.zones.find(z => z.id === zoneId)
     : zoneName
@@ -131,15 +135,15 @@ app.post('/api/board/:id/add', (req, res) => {
   res.json({ ok: true, zone: zone.name, type: element.type })
 })
 
-// API: List zones for a board (used by shortcuts)
-app.get('/api/board/:id/zones', (req, res) => {
+// API: List zones
+app.get('/api/board/:id/zones', async (req, res) => {
   const room = rooms.get(req.params.id)
-  const board = room?.board || loadFromDisk(req.params.id)
+  const board = room?.board || await redisGet(`board:${req.params.id}`)
   if (!board?.zones) return res.status(404).json({ error: 'Board not found' })
   res.json(board.zones.map(z => ({ id: z.id, name: z.name })))
 })
 
-// Serve .shortcut file with correct MIME type for iOS
+// Serve .shortcut file
 app.get('/add-to-mood-board.shortcut', (req, res) => {
   res.set('Content-Type', 'application/octet-stream')
   res.set('Content-Disposition', 'attachment; filename="Add to Mood Board.shortcut"')
@@ -155,13 +159,12 @@ app.get('/{*splat}', (req, res) => {
   res.sendFile(join(__dirname, 'dist', 'index.html'))
 })
 
-// Board rooms: boardId → { clients: Set<{ws, userId, name, color}>, board: object|null }
+// Board rooms
 const rooms = new Map()
 
-function getRoom(boardId) {
+async function getRoom(boardId) {
   if (!rooms.has(boardId)) {
-    // Try loading from disk when room is first accessed
-    const board = loadFromDisk(boardId)
+    const board = await redisGet(`board:${boardId}`)
     rooms.set(boardId, { clients: new Set(), board })
   }
   return rooms.get(boardId)
@@ -188,18 +191,17 @@ function broadcastUsers(room) {
   }
 }
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, 'http://localhost')
-  const boardId = url.searchParams.get('board') || 'default'
+  const boardId = url.searchParams.get('board') || 'main'
   const userId = url.searchParams.get('user') || 'anon'
   const name = decodeURIComponent(url.searchParams.get('name') || 'Anonymous')
   const color = url.searchParams.get('color') || '#2563eb'
 
-  const room = getRoom(boardId)
+  const room = await getRoom(boardId)
   const client = { ws, userId, name, color }
   room.clients.add(client)
 
-  // Send current board state if server has it, otherwise tell client we have nothing
   if (room.board) {
     ws.send(JSON.stringify({ type: 'sync', board: room.board }))
   } else {
@@ -213,11 +215,9 @@ wss.on('connection', (ws, req) => {
     try { msg = JSON.parse(raw) } catch { return }
 
     if (msg.type === 'update' && msg.board) {
-      // Count total elements to decide if this is a real update or stale empty state
       const countElements = (b) => (b?.zones || []).reduce((n, z) => n + (z.elements?.length || 0), 0)
       const incoming = countElements(msg.board)
       const current = countElements(room.board)
-      // Accept if: server has nothing, incoming has more/equal content, or incoming has zones and current doesn't
       if (!room.board || incoming >= current || (msg.board.zones?.length && !room.board.zones?.length)) {
         room.board = msg.board
         broadcast(room, { type: 'sync', board: msg.board }, ws)
@@ -229,13 +229,13 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     room.clients.delete(client)
     broadcastUsers(room)
-    // Save to disk when last client disconnects
     if (room.clients.size === 0 && room.board) {
-      saveToDisk(boardId, room.board)
+      redisSet(`board:${boardId}`, room.board)
     }
   })
 })
 
 server.listen(PORT, () => {
-  console.log(`Mood Board running at http://localhost:${PORT}`)
+  const db = REDIS_URL ? 'Upstash Redis' : 'in-memory only (no UPSTASH_REDIS_REST_URL set)'
+  console.log(`Mood Board running at http://localhost:${PORT} — storage: ${db}`)
 })
