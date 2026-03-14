@@ -12,7 +12,7 @@ import OnboardingModal from './components/modals/OnboardingModal.vue'
 import ToastContainer from './components/ui/ToastContainer.vue'
 
 const store = useBoardStore()
-const { boardId, connected, syncing, users, exportJson, importJson } = useSync()
+const { boardId, connected, syncing, users, exportJson, importJson, debouncedSave } = useSync()
 const toast = useToast()
 
 const boardCanvas = ref(null)
@@ -69,11 +69,13 @@ function onKeyDown(e) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault()
     store.undo()
+    debouncedSave()
     return
   }
   if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
     e.preventDefault()
     store.redo()
+    debouncedSave()
     return
   }
 

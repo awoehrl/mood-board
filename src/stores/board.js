@@ -35,6 +35,12 @@ export const useBoardStore = defineStore('board', () => {
   // Undo/Redo
   const undoStack = ref([])
   const redoStack = ref([])
+  // Callers can check this to skip watcher-triggered syncs during undo/redo
+  let _undoRedoInProgress = false
+
+  function isUndoRedoInProgress() {
+    return _undoRedoInProgress
+  }
 
   function pushUndo() {
     undoStack.value.push(JSON.stringify(exportBoard()))
@@ -44,16 +50,27 @@ export const useBoardStore = defineStore('board', () => {
 
   function undo() {
     if (!undoStack.value.length) return
+    _undoRedoInProgress = true
     redoStack.value.push(JSON.stringify(exportBoard()))
     const snapshot = undoStack.value.pop()
-    loadBoard(JSON.parse(snapshot))
+    const data = JSON.parse(snapshot)
+    // Restore board data without clearing selection
+    name.value = data.name || 'My House Renovation'
+    zones.value = data.zones || []
+    colorIndex = zones.value.length
+    _undoRedoInProgress = false
   }
 
   function redo() {
     if (!redoStack.value.length) return
+    _undoRedoInProgress = true
     undoStack.value.push(JSON.stringify(exportBoard()))
     const snapshot = redoStack.value.pop()
-    loadBoard(JSON.parse(snapshot))
+    const data = JSON.parse(snapshot)
+    name.value = data.name || 'My House Renovation'
+    zones.value = data.zones || []
+    colorIndex = zones.value.length
+    _undoRedoInProgress = false
   }
 
   function clearUndoHistory() {
@@ -201,5 +218,6 @@ export const useBoardStore = defineStore('board', () => {
     undo,
     redo,
     clearUndoHistory,
+    isUndoRedoInProgress,
   }
 })

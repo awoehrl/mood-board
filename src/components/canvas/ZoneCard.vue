@@ -17,6 +17,7 @@ const isEditingName = ref(false)
 const editName = ref('')
 let dragOffset = null
 let resizeStart = null
+let undoPushedForDrag = false
 
 function getScale() {
   const layer = document.querySelector('[data-canvas-layer]')
@@ -27,19 +28,21 @@ function getScale() {
 function onZonePointerDown(e) {
   if (isResizing.value) return
   if (e.target.closest('[data-element]') || e.target.closest('[data-resize]')) return
-  store.pushUndo()
   store.selectZone(props.zone.id)
   isDragging.value = true
+  undoPushedForDrag = false
   dragOffset = { x: e.clientX / getScale() - props.zone.x, y: e.clientY / getScale() - props.zone.y }
   e.currentTarget.setPointerCapture(e.pointerId)
   e.stopPropagation()
 }
 function onZonePointerMove(e) {
   if (isDragging.value && dragOffset) {
+    if (!undoPushedForDrag) { store.pushUndo(); undoPushedForDrag = true }
     const s = getScale()
     store.updateZone(props.zone.id, { x: e.clientX / s - dragOffset.x, y: e.clientY / s - dragOffset.y })
   }
   if (isResizing.value && resizeStart) {
+    if (!undoPushedForDrag) { store.pushUndo(); undoPushedForDrag = true }
     const s = getScale()
     store.updateZone(props.zone.id, {
       width: Math.max(200, resizeStart.width + (e.clientX - resizeStart.clientX) / s),
@@ -47,10 +50,10 @@ function onZonePointerMove(e) {
     })
   }
 }
-function onZonePointerUp() { isDragging.value = false; isResizing.value = false; dragOffset = null; resizeStart = null }
+function onZonePointerUp() { isDragging.value = false; isResizing.value = false; dragOffset = null; resizeStart = null; undoPushedForDrag = false }
 function onResizePointerDown(e) {
-  store.pushUndo()
   isResizing.value = true
+  undoPushedForDrag = false
   resizeStart = { clientX: e.clientX, clientY: e.clientY, width: props.zone.width, height: props.zone.height }
   e.stopPropagation()
   e.currentTarget.closest('[data-zone]').setPointerCapture(e.pointerId)
@@ -61,7 +64,6 @@ function saveName() {
   isEditingName.value = false
 }
 function onElementPointerDown(e, el) {
-  store.pushUndo()
   const additive = e.shiftKey
   store.selectElement(props.zone.id, el.id, additive)
   e.stopPropagation()
@@ -72,6 +74,7 @@ function onElementPointerDown(e, el) {
 
   const s = getScale()
   const sx = e.clientX, sy = e.clientY
+  let pushed = false
 
   // Capture initial positions for all moving elements
   const zone = props.zone
@@ -82,6 +85,7 @@ function onElementPointerDown(e, el) {
   }
 
   const onMove = (ev) => {
+    if (!pushed) { store.pushUndo(); pushed = true }
     const dx = (ev.clientX - sx) / s
     const dy = (ev.clientY - sy) / s
     for (const id of movingIds) {

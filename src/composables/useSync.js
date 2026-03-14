@@ -107,11 +107,12 @@ export function useSync() {
         // Server has data — it's the source of truth
         ignoreNextWatch = true
         store.loadBoard(msg.board)
-        store.clearUndoHistory()
         saveLocal()
         if (msg.version !== undefined) serverVersion = msg.version
         initialized = true
-        setTimeout(() => { ignoreNextWatch = false }, 100)
+        // Use requestAnimationFrame to ensure Vue has flushed reactivity
+        // before re-enabling the watcher
+        requestAnimationFrame(() => { ignoreNextWatch = false })
       }
 
       if (msg.type === 'no-data') {
@@ -221,10 +222,11 @@ export function useSync() {
     () => store.exportBoard(),
     () => {
       if (ignoreNextWatch) return
+      if (store.isUndoRedoInProgress()) return
       debouncedSave()
     },
     { deep: true }
   )
 
-  return { boardId, connected, syncing, users, isOffline, exportJson, importJson }
+  return { boardId, connected, syncing, users, isOffline, exportJson, importJson, debouncedSave }
 }
