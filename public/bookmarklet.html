@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Mood Board Bookmarklet</title>
+<style>
+  body { font-family: -apple-system, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; color: #37352f; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p { font-size: 14px; color: #9b9a97; margin-bottom: 20px; }
+  .bookmarklet {
+    display: inline-block; padding: 10px 16px; background: #2eaadc; color: white;
+    border-radius: 8px; font-size: 15px; font-weight: 500; text-decoration: none; cursor: grab;
+  }
+  .bookmarklet:hover { background: #2393c0; }
+  .instructions { margin-top: 20px; font-size: 14px; line-height: 1.8; }
+  .instructions li { margin-bottom: 4px; }
+  code { background: #f7f6f3; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>+ Mood Board Bookmarklet</h1>
+<p>Drag this button to your bookmarks bar:</p>
+
+<a class="bookmarklet" id="bm" href="#">⬆ Drag me to bookmarks bar</a>
+
+<div class="instructions">
+<h3>How to install:</h3>
+<ol>
+<li>Make sure your <b>Bookmarks Bar</b> is visible (View → Show Bookmarks Bar)</li>
+<li><b>Drag</b> the blue button above into your bookmarks bar</li>
+<li>That's it! Click it on any page to add it to your mood board</li>
+</ol>
+
+<h3>What it does:</h3>
+<ol>
+<li>Shows a floating zone picker on the current page</li>
+<li>You pick a room</li>
+<li>The page URL + title get added to that zone</li>
+</ol>
+</div>
+
+<script>
+const BASE = location.origin
+
+// Build the bookmarklet code — a self-contained script that creates a floating UI
+const code = `
+javascript:void((function(){
+  if(document.getElementById('mb-overlay')){document.getElementById('mb-overlay').remove();return}
+  var BASE='${BASE}';
+  var ov=document.createElement('div');
+  ov.id='mb-overlay';
+  ov.style.cssText='position:fixed;top:0;right:0;bottom:0;left:0;z-index:999999;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-family:-apple-system,sans-serif';
+  ov.onclick=function(e){if(e.target===ov)ov.remove()};
+  var card=document.createElement('div');
+  card.style.cssText='background:white;border-radius:12px;padding:20px;width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.2)';
+  card.innerHTML='<div style=\"font-size:15px;font-weight:600;margin-bottom:12px\">Add to Mood Board</div><div style=\"font-size:12px;color:#9b9a97;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">'+document.title+'</div><div id=\"mb-zones\" style=\"font-size:13px;color:#9b9a97\">Loading zones...</div>';
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  fetch(BASE+'/api/board/main/zones').then(function(r){return r.json()}).then(function(zones){
+    var container=document.getElementById('mb-zones');
+    container.innerHTML='';
+    zones.forEach(function(z){
+      var btn=document.createElement('button');
+      btn.textContent=z.name;
+      btn.style.cssText='display:block;width:100%;padding:10px;margin-bottom:6px;border:1px solid rgba(55,53,47,0.16);border-radius:8px;background:white;font-size:14px;color:#37352f;cursor:pointer;text-align:left';
+      btn.onmouseover=function(){btn.style.background='#f7f6f3'};
+      btn.onmouseout=function(){btn.style.background='white'};
+      btn.onclick=function(){
+        btn.textContent='Adding...';
+        btn.disabled=true;
+        fetch(BASE+'/api/board/main/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:location.href,title:document.title,zoneName:z.name})}).then(function(r){return r.json()}).then(function(){
+          card.innerHTML='<div style=\"text-align:center;padding:20px;font-size:15px\">Added to '+z.name+'!</div>';
+          setTimeout(function(){ov.remove()},1200);
+        }).catch(function(e){btn.textContent='Error: '+e.message});
+      };
+      container.appendChild(btn);
+    });
+  }).catch(function(){document.getElementById('mb-zones').textContent='Could not load zones. Is the board running?'});
+})())
+`.replace(/\n/g, '').replace(/\s{2,}/g, ' ')
+
+document.getElementById('bm').href = code
+document.getElementById('bm').textContent = '+ Mood Board'
+</script>
+</body>
+</html>
