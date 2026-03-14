@@ -1,31 +1,22 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useBoardStore } from '../stores/board.js'
-import { newId } from '../utils/ids.js'
 
 const SAVE_DEBOUNCE_MS = 300
+const BOARD_ID = 'main' // Single fixed board
 
 export function useSync() {
   const store = useBoardStore()
-  const boardId = ref(null)
+  const boardId = ref(BOARD_ID)
   const connected = ref(false)
   const syncing = ref(false)
   let ws = null
   let saveTimer = null
   let ignoreNextWatch = false
   let reconnectTimer = null
-  let initialized = false // Don't send updates until we get server state
-
-  function getBoardId() {
-    let id = window.location.hash.replace('#', '')
-    if (!id) {
-      id = newId().split('-')[0]
-      window.location.hash = id
-    }
-    return id
-  }
+  let initialized = false
 
   function getLocalKey() {
-    return `mood-board-${boardId.value}`
+    return 'mood-board-main'
   }
 
   function saveLocal() {
@@ -51,7 +42,7 @@ export function useSync() {
     const userId = localStorage.getItem('mood-board-user-id') || 'anon'
     const name = encodeURIComponent(localStorage.getItem('mood-board-user-name') || 'Anonymous')
     const color = encodeURIComponent(localStorage.getItem('mood-board-user-color') || '#2563eb')
-    return `${proto}://${host}/ws?board=${boardId.value}&user=${userId}&name=${name}&color=${color}`
+    return `${proto}://${host}/ws?board=${BOARD_ID}&user=${userId}&name=${name}&color=${color}`
   }
 
   function connect() {
@@ -66,8 +57,6 @@ export function useSync() {
 
     ws.onopen = () => {
       connected.value = true
-      // Re-load localStorage in case we're reconnecting after a deploy
-      loadLocal()
     }
 
     ws.onmessage = (e) => {
@@ -75,19 +64,20 @@ export function useSync() {
       try { msg = JSON.parse(e.data) } catch { return }
 
       if (msg.type === 'sync' && msg.board) {
+        // Server has data — it's the source of truth
         ignoreNextWatch = true
         store.loadBoard(msg.board)
         saveLocal()
         initialized = true
-        setTimeout(() => { ignoreNextWatch = false }, 50)
+        setTimeout(() => { ignoreNextWatch = false }, 100)
       }
 
       if (msg.type === 'no-data') {
-        // Server has no board — push our local state (freshly loaded from localStorage)
+        // Server has nothing — try to restore from localStorage
+        const localData = loadLocal()
         initialized = true
-        const board = store.exportBoard()
-        if (board.zones?.length && ws?.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'update', board }))
+        if (localData && ws?.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'update', board: store.exportBoard() }))
         }
       }
 
@@ -161,9 +151,6 @@ export function useSync() {
   }
 
   onMounted(() => {
-    boardId.value = getBoardId()
-    // Save board ID for share page to use
-    localStorage.setItem('mood-board-last-board', boardId.value)
     loadLocal()
     connect()
     // Register service worker for PWA + share target

@@ -212,8 +212,12 @@ wss.on('connection', (ws, req) => {
     try { msg = JSON.parse(raw) } catch { return }
 
     if (msg.type === 'update' && msg.board) {
-      // Only accept updates that have actual content, or if server has nothing
-      if (!room.board || msg.board.zones?.length >= (room.board.zones?.length || 0)) {
+      // Count total elements to decide if this is a real update or stale empty state
+      const countElements = (b) => (b?.zones || []).reduce((n, z) => n + (z.elements?.length || 0), 0)
+      const incoming = countElements(msg.board)
+      const current = countElements(room.board)
+      // Accept if: server has nothing, incoming has more/equal content, or incoming has zones and current doesn't
+      if (!room.board || incoming >= current || (msg.board.zones?.length && !room.board.zones?.length)) {
         room.board = msg.board
         broadcast(room, { type: 'sync', board: msg.board }, ws)
         debouncedSave(boardId, msg.board)
