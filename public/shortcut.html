@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Install Mood Board Shortcut</title>
+<style>
+  body { font-family: -apple-system, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; color: #37352f; }
+  h1 { font-size: 20px; }
+  .btn { display: block; width: 100%; padding: 14px; font-size: 17px; border-radius: 12px; border: none; color: white; background: #2eaadc; text-align: center; text-decoration: none; margin: 16px 0; }
+  .step { margin: 12px 0; padding: 12px; background: #f7f6f3; border-radius: 8px; font-size: 14px; }
+  .step b { display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<h1>Add to Mood Board — iOS Shortcut</h1>
+<a class="btn" id="installBtn">Open in Shortcuts App</a>
+<div class="step"><b>What it does:</b>Share any URL or text from Safari → it gets added to your mood board and syncs to both users in real-time.</div>
+<div class="step"><b>After installing:</b>In Safari, tap Share → scroll down → tap "Add to Mood Board"</div>
+<script>
+// Build the Apple Shortcut URL scheme
+// This creates a shortcut that accepts share sheet input and POSTs to the API
+const boardId = 'f91c9ace'
+const base = location.origin
+const apiUrl = `${base}/api/board/${boardId}/add`
+
+// Apple Shortcuts URL scheme to import a shortcut
+// We'll use the shortcuts:// scheme with x-callback
+// Unfortunately, there's no direct way to create a shortcut via URL
+// Instead, we'll link to an iCloud shortcut or use the shortcuts:// import
+
+// Build a .shortcut file approach - create a downloadable shortcut
+document.getElementById('installBtn').href = `shortcuts://x-callback-url/run-shortcut?name=Add%20to%20Mood%20Board`
+document.getElementById('installBtn').textContent = 'See setup instructions below'
+
+// Show manual instructions since programmatic shortcut creation is limited
+document.body.innerHTML += `
+<div style="margin-top: 20px">
+<h2 style="font-size: 16px">Quick Setup (1 minute):</h2>
+<ol style="font-size: 14px; line-height: 1.8">
+<li>Open <b>Shortcuts</b> app on your iPhone</li>
+<li>Tap <b>+</b> in the top right</li>
+<li>Tap <b>Add Action</b>, search for <b>"Receive"</b></li>
+<li>Select <b>"Receive input from Share Sheet"</b> — set types to <b>URLs</b></li>
+<li>Tap <b>+</b> again, search for <b>"URL"</b></li>
+<li>Select <b>"URL"</b> action, paste this:<br><code style="background:#e8e8e8;padding:2px 6px;border-radius:4px;font-size:12px;user-select:all">${apiUrl}</code></li>
+<li>Tap <b>+</b>, search for <b>"Get Contents"</b></li>
+<li>Select <b>"Get Contents of URL"</b></li>
+<li>Tap <b>Show More</b> → Method: <b>POST</b> → Request Body: <b>JSON</b></li>
+<li>Add key: <b>url</b>, value: tap and select <b>"Shortcut Input"</b></li>
+<li>Add key: <b>title</b>, value: tap and select <b>"Shortcut Input"</b></li>
+<li>Tap the name at top, rename to <b>"Add to Mood Board"</b></li>
+<li>Tap <b>Done</b>!</li>
+</ol>
+<p style="font-size:13px;color:#9b9a97">Now in Safari: Share → Add to Mood Board</p>
+</div>
+`
+</script>
+</body>
+</html>
