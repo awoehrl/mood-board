@@ -214,15 +214,24 @@ wss.on('connection', async (ws, req) => {
 
   broadcastUsers(room)
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let msg
     try { msg = JSON.parse(raw) } catch { return }
 
     if (msg.type === 'update' && msg.board) {
-      const countElements = (b) => (b?.zones || []).reduce((n, z) => n + (z.elements?.length || 0), 0)
-      const incoming = countElements(msg.board)
-      const current = countElements(room.board)
-      if (!room.board || incoming >= current || (msg.board.zones?.length && !room.board.zones?.length)) {
+      const countContent = (b) => {
+        const zones = b?.zones || []
+        const elements = zones.reduce((n, z) => n + (z.elements?.length || 0), 0)
+        return zones.length * 1000 + elements // weight zones heavily
+      }
+      const incoming = countContent(msg.board)
+      const current = countContent(room.board)
+
+      // Reject empty updates when we have data
+      if (incoming === 0 && current > 0) return
+
+      // Accept if server has nothing or incoming has more/equal content
+      if (!room.board || incoming >= current) {
         room.board = msg.board
         broadcast(room, { type: 'sync', board: msg.board }, ws)
         debouncedSave(boardId, msg.board)

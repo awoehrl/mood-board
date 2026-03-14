@@ -103,11 +103,13 @@ export function useSync() {
   }
 
   function sendUpdate() {
+    const board = store.exportBoard()
     saveLocal()
     if (!initialized) return // Don't push until we know server state
+    if (!board.zones?.length) return // Never push empty board
     syncing.value = true
     if (ws?.readyState === 1) {
-      ws.send(JSON.stringify({ type: 'update', board: store.exportBoard() }))
+      ws.send(JSON.stringify({ type: 'update', board }))
     }
     setTimeout(() => { syncing.value = false }, 200)
   }
