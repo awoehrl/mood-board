@@ -3,6 +3,7 @@ import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -10,6 +11,40 @@ const server = createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws' })
 
 const PORT = process.env.PORT || 3000
+const DATA_DIR = join(__dirname, 'data')
+
+// Ensure data directory exists
+try { mkdirSync(DATA_DIR, { recursive: true }) } catch {}
+
+// --- File persistence ---
+function boardFile(boardId) {
+  // Sanitize board ID for filesystem safety
+  return join(DATA_DIR, `${boardId.replace(/[^a-zA-Z0-9-]/g, '')}.json`)
+}
+
+function saveToDisk(boardId, board) {
+  try {
+    writeFileSync(boardFile(boardId), JSON.stringify(board))
+  } catch (e) {
+    console.error('Failed to save board to disk:', e.message)
+  }
+}
+
+function loadFromDisk(boardId) {
+  try {
+    const raw = readFileSync(boardFile(boardId), 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+// Debounced disk saves per board
+const saveTimers = new Map()
+function debouncedSave(boardId, board) {
+  clearTimeout(saveTimers.get(boardId))
+  saveTimers.set(boardId, setTimeout(() => saveToDisk(boardId, board), 1000))
+}
 
 // JSON body parsing for API
 app.use(express.json({ limit: '10mb' }))
@@ -29,8 +64,9 @@ app.use(express.static(join(__dirname, 'dist')))
 // API: Get board data
 app.get('/api/board/:id', (req, res) => {
   const room = rooms.get(req.params.id)
-  if (room?.board) {
-    res.json(room.board)
+  const board = room?.board || loadFromDisk(req.params.id)
+  if (board) {
+    res.json(board)
   } else {
     res.status(404).json({ error: 'Board not found' })
   }
@@ -41,8 +77,8 @@ app.post('/api/board/:id', (req, res) => {
   const boardId = req.params.id
   const room = getRoom(boardId)
   room.board = req.body
-  // Broadcast to all connected clients
   broadcast(room, { type: 'sync', board: room.board })
+  debouncedSave(boardId, room.board)
   res.json({ ok: true })
 })
 
@@ -50,6 +86,8 @@ app.post('/api/board/:id', (req, res) => {
 app.post('/api/board/:id/add', (req, res) => {
   const boardId = req.params.id
   const room = getRoom(boardId)
+  // Load from disk if not in memory
+  if (!room.board) room.board = loadFromDisk(boardId)
   if (!room.board?.zones?.length) {
     return res.status(404).json({ error: 'Board has no zones' })
   }
@@ -88,14 +126,16 @@ app.post('/api/board/:id/add', (req, res) => {
 
   zone.elements.push(element)
   broadcast(room, { type: 'sync', board: room.board })
+  debouncedSave(boardId, room.board)
   res.json({ ok: true, zone: zone.name, type: element.type })
 })
 
 // API: List zones for a board (used by shortcuts)
 app.get('/api/board/:id/zones', (req, res) => {
   const room = rooms.get(req.params.id)
-  if (!room?.board?.zones) return res.status(404).json({ error: 'Board not found' })
-  res.json(room.board.zones.map(z => ({ id: z.id, name: z.name })))
+  const board = room?.board || loadFromDisk(req.params.id)
+  if (!board?.zones) return res.status(404).json({ error: 'Board not found' })
+  res.json(board.zones.map(z => ({ id: z.id, name: z.name })))
 })
 
 // Share target page
@@ -112,7 +152,9 @@ const rooms = new Map()
 
 function getRoom(boardId) {
   if (!rooms.has(boardId)) {
-    rooms.set(boardId, { clients: new Set(), board: null })
+    // Try loading from disk when room is first accessed
+    const board = loadFromDisk(boardId)
+    rooms.set(boardId, { clients: new Set(), board })
   }
   return rooms.get(boardId)
 }
@@ -162,21 +204,22 @@ wss.on('connection', (ws, req) => {
     let msg
     try { msg = JSON.parse(raw) } catch { return }
 
-    if (msg.type === 'update') {
-      room.board = msg.board
-      broadcast(room, { type: 'sync', board: msg.board }, ws)
+    if (msg.type === 'update' && msg.board) {
+      // Only accept updates that have actual content, or if server has nothing
+      if (!room.board || msg.board.zones?.length >= (room.board.zones?.length || 0)) {
+        room.board = msg.board
+        broadcast(room, { type: 'sync', board: msg.board }, ws)
+        debouncedSave(boardId, msg.board)
+      }
     }
   })
 
   ws.on('close', () => {
     room.clients.delete(client)
     broadcastUsers(room)
-    // Clean up empty rooms
-    if (room.clients.size === 0) {
-      // Keep board data for 10 minutes in case someone reconnects
-      setTimeout(() => {
-        if (room.clients.size === 0) rooms.delete(boardId)
-      }, 600000)
+    // Save to disk when last client disconnects
+    if (room.clients.size === 0 && room.board) {
+      saveToDisk(boardId, room.board)
     }
   })
 })

@@ -56,6 +56,7 @@ export function useSync() {
 
   function connect() {
     if (!boardId.value) return
+    initialized = false // Reset on each connection attempt
     try {
       ws = new WebSocket(getWsUrl())
     } catch {
@@ -65,7 +66,8 @@ export function useSync() {
 
     ws.onopen = () => {
       connected.value = true
-      // Don't push state yet — wait for server to tell us what it has
+      // Re-load localStorage in case we're reconnecting after a deploy
+      loadLocal()
     }
 
     ws.onmessage = (e) => {
@@ -81,7 +83,7 @@ export function useSync() {
       }
 
       if (msg.type === 'no-data') {
-        // Server has no board — push our local state
+        // Server has no board — push our local state (freshly loaded from localStorage)
         initialized = true
         const board = store.exportBoard()
         if (board.zones?.length && ws?.readyState === 1) {
