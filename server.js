@@ -78,29 +78,66 @@ app.post('/api/upload', async (req, res) => {
   try {
     const { image } = req.body
     if (!image) return res.status(400).json({ error: 'No image provided' })
-    const base64 = image.replace(/^data:image\/\w+;base64,/, '')
-    const buffer = Buffer.from(base64, 'base64')
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
-    const upload = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${filename}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'image/jpeg',
-        },
-        body: buffer,
-      }
-    )
-    if (!upload.ok) {
-      const err = await upload.text()
-      throw new Error(err)
-    }
-    const url = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${filename}`
+    const url = await uploadToSupabase(image)
     res.json({ url })
   } catch (e) {
     console.error('Supabase upload failed:', e.message)
     res.status(500).json({ error: 'Upload failed' })
+  }
+})
+
+// One-time migration: upload all base64 images to Supabase
+async function uploadToSupabase(base64) {
+  const raw = base64.replace(/^data:image\/\w+;base64,/, '')
+  const buffer = Buffer.from(raw, 'base64')
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
+  const upload = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${filename}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'image/jpeg',
+      },
+      body: buffer,
+    }
+  )
+  if (!upload.ok) throw new Error(await upload.text())
+  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${filename}`
+}
+
+app.post('/api/migrate-images/:id', async (req, res) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    return res.status(500).json({ error: 'Supabase not configured' })
+  }
+  try {
+    const room = await getRoom(req.params.id)
+    if (!room.board?.zones) return res.status(404).json({ error: 'Board not found' })
+
+    let migrated = 0, failed = 0
+    for (const zone of room.board.zones) {
+      for (const el of zone.elements) {
+        if (el.type === 'image' && el.data?.src?.startsWith('data:')) {
+          try {
+            el.data.src = await uploadToSupabase(el.data.src)
+            migrated++
+          } catch (e) {
+            console.error('Migration failed for element', el.id, e.message)
+            failed++
+          }
+        }
+      }
+    }
+
+    // Save and broadcast updated board
+    room.version = (room.version || 0) + 1
+    broadcast(room, { type: 'sync', board: room.board, version: room.version })
+    await redisSet(`board:${req.params.id}`, { ...room.board, _version: room.version })
+
+    res.json({ ok: true, migrated, failed })
+  } catch (e) {
+    console.error('Migration error:', e.message)
+    res.status(500).json({ error: e.message })
   }
 })
 
