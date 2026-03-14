@@ -195,6 +195,14 @@ function broadcastUsers(room) {
   }
 }
 
+// Track highest known element count per board (survives in-process room resets)
+const peakContent = new Map()
+
+function countContent(b) {
+  const zones = b?.zones || []
+  return zones.reduce((n, z) => n + (z.elements?.length || 0), 0)
+}
+
 wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, 'http://localhost')
   const boardId = url.searchParams.get('board') || 'main'
@@ -206,6 +214,13 @@ wss.on('connection', async (ws, req) => {
   const client = { ws, userId, name, color }
   room.clients.add(client)
 
+  // Track peak content count
+  if (room.board) {
+    const count = countContent(room.board)
+    peakContent.set(boardId, Math.max(peakContent.get(boardId) || 0, count))
+  }
+
+  // Always send what we have — Redis is source of truth
   if (room.board) {
     ws.send(JSON.stringify({ type: 'sync', board: room.board }))
   } else {
@@ -219,23 +234,24 @@ wss.on('connection', async (ws, req) => {
     try { msg = JSON.parse(raw) } catch { return }
 
     if (msg.type === 'update' && msg.board) {
-      const countContent = (b) => {
-        const zones = b?.zones || []
-        const elements = zones.reduce((n, z) => n + (z.elements?.length || 0), 0)
-        return zones.length * 1000 + elements // weight zones heavily
-      }
       const incoming = countContent(msg.board)
       const current = countContent(room.board)
+      const peak = peakContent.get(boardId) || 0
 
-      // Reject empty updates when we have data
-      if (incoming === 0 && current > 0) return
-
-      // Accept if server has nothing or incoming has more/equal content
-      if (!room.board || incoming >= current) {
-        room.board = msg.board
-        broadcast(room, { type: 'sync', board: msg.board }, ws)
-        debouncedSave(boardId, msg.board)
+      // Never accept a board with significantly fewer elements than we've ever seen
+      // (allows small deletions but prevents full wipes)
+      if (incoming < peak * 0.5 && peak > 2) {
+        console.log(`Rejected update: ${incoming} elements < 50% of peak ${peak}`)
+        // Re-send the correct state to this client
+        if (room.board) ws.send(JSON.stringify({ type: 'sync', board: room.board }))
+        return
       }
+
+      // Accept the update
+      room.board = msg.board
+      peakContent.set(boardId, Math.max(peak, incoming))
+      broadcast(room, { type: 'sync', board: msg.board }, ws)
+      debouncedSave(boardId, msg.board)
     }
   })
 
