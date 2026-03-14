@@ -21,7 +21,11 @@ async function redisGet(key) {
       headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
     })
     const data = await res.json()
-    return data.result ? JSON.parse(data.result) : null
+    if (!data.result) return null
+    // Handle both string (old double-encoded) and object results
+    let parsed = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
+    if (typeof parsed === 'string') parsed = JSON.parse(parsed) // unwrap double-encoding
+    return parsed
   } catch (e) {
     console.error('Redis GET failed:', e.message)
     return null
@@ -37,7 +41,7 @@ async function redisSet(key, value) {
         Authorization: `Bearer ${REDIS_TOKEN}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(JSON.stringify(value))
+      body: JSON.stringify(value)
     })
   } catch (e) {
     console.error('Redis SET failed:', e.message)
