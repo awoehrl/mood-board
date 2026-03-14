@@ -86,16 +86,17 @@ app.post('/api/board/:id', (req, res) => {
 app.post('/api/board/:id/add', (req, res) => {
   const boardId = req.params.id
   const room = getRoom(boardId)
-  // Load from disk if not in memory
-  if (!room.board) room.board = loadFromDisk(boardId)
   if (!room.board?.zones?.length) {
-    return res.status(404).json({ error: 'Board has no zones' })
+    return res.status(404).json({ error: 'Board has no zones yet. Open the app and create a zone first.' })
   }
-  const { zoneId, url, text, title } = req.body
+  const { zoneId, zoneName, url, text, title } = req.body
+  // Find zone by ID, name, or default to first
   const zone = zoneId
     ? room.board.zones.find(z => z.id === zoneId)
-    : room.board.zones[0]
-  if (!zone) return res.status(404).json({ error: 'Zone not found' })
+    : zoneName
+      ? room.board.zones.find(z => z.name.toLowerCase() === zoneName.toLowerCase())
+      : room.board.zones[0]
+  if (!zone) return res.status(404).json({ error: 'Zone not found', available: room.board.zones.map(z => z.name) })
 
   const content = url || text || title || ''
   const isImage = /\.(jpe?g|png|gif|webp|svg|avif)/i.test(content)
