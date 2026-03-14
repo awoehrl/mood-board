@@ -138,6 +138,13 @@ app.get('/api/board/:id/zones', (req, res) => {
   res.json(board.zones.map(z => ({ id: z.id, name: z.name })))
 })
 
+// Serve .shortcut file with correct MIME type for iOS
+app.get('/add-to-mood-board.shortcut', (req, res) => {
+  res.set('Content-Type', 'application/octet-stream')
+  res.set('Content-Disposition', 'attachment; filename="Add to Mood Board.shortcut"')
+  res.sendFile(join(__dirname, 'dist', 'Add to Mood Board.shortcut'))
+})
+
 // Share target page
 app.get('/share', (req, res) => {
   res.sendFile(join(__dirname, 'dist', 'share.html'))
