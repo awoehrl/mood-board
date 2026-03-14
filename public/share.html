@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Add to Mood Board</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #37352f; padding: 20px; }
+    h1 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+    .preview { background: #f7f6f3; border-radius: 8px; padding: 16px; margin-bottom: 16px; word-break: break-all; font-size: 14px; }
+    .preview img { max-width: 100%; border-radius: 4px; margin-top: 8px; }
+    .label { font-size: 12px; color: #9b9a97; margin-bottom: 4px; }
+    select, button { width: 100%; height: 44px; border-radius: 8px; font-size: 15px; margin-bottom: 10px; padding: 0 12px; }
+    select { border: 1px solid rgba(55,53,47,0.16); background: #fff; color: #37352f; }
+    .btn-add { background: #2eaadc; color: white; border: none; font-weight: 500; }
+    .btn-add:disabled { opacity: 0.4; }
+    .btn-cancel { background: none; border: 1px solid rgba(55,53,47,0.16); color: #37352f; }
+    .status { text-align: center; font-size: 14px; color: #9b9a97; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Add to Mood Board</h1>
+
+  <div class="preview" id="preview"></div>
+
+  <div class="label">Add to zone:</div>
+  <select id="zoneSelect"><option value="">Loading zones...</option></select>
+
+  <button class="btn-add" id="addBtn" disabled>Add to Board</button>
+  <button class="btn-cancel" onclick="window.close(); window.location='/'">Cancel</button>
+  <div class="status" id="status"></div>
+
+  <script>
+    const params = new URLSearchParams(location.search)
+    const sharedUrl = params.get('url') || ''
+    const sharedText = params.get('text') || ''
+    const sharedTitle = params.get('title') || ''
+
+    // Figure out what was shared
+    const content = sharedUrl || sharedText || ''
+    const isImage = /\.(jpe?g|png|gif|webp|svg|avif)/i.test(content)
+    const isUrl = /^https?:\/\//i.test(content)
+
+    // Show preview
+    const preview = document.getElementById('preview')
+    if (isImage) {
+      preview.innerHTML = `<div class="label">Image</div><img src="${content}" />`
+    } else if (isUrl) {
+      preview.innerHTML = `<div class="label">Link</div>${sharedTitle ? `<strong>${sharedTitle}</strong><br>` : ''}${content}`
+    } else {
+      preview.innerHTML = `<div class="label">Text</div>${content || sharedTitle || '(empty)'}`
+    }
+
+    // Get board ID from stored value or hash
+    const boardId = localStorage.getItem('mood-board-last-board') || location.hash.replace('#', '')
+
+    // Fetch zones from the board
+    const zoneSelect = document.getElementById('zoneSelect')
+    const addBtn = document.getElementById('addBtn')
+    const status = document.getElementById('status')
+    let boardData = null
+
+    if (boardId) {
+      fetch(`/api/board/${boardId}`)
+        .then(r => r.json())
+        .then(data => {
+          boardData = data
+          if (data.zones?.length) {
+            zoneSelect.innerHTML = data.zones.map(z =>
+              `<option value="${z.id}">${z.name}</option>`
+            ).join('')
+            addBtn.disabled = false
+          } else {
+            zoneSelect.innerHTML = '<option>No zones yet</option>'
+          }
+        })
+        .catch(() => {
+          zoneSelect.innerHTML = '<option>Could not load board</option>'
+        })
+    } else {
+      zoneSelect.innerHTML = '<option>No board found — open the app first</option>'
+    }
+
+    addBtn.onclick = async () => {
+      const zoneId = zoneSelect.value
+      if (!zoneId || !boardData) return
+
+      const zone = boardData.zones.find(z => z.id === zoneId)
+      if (!zone) return
+
+      const newId = crypto.randomUUID()
+      let element
+
+      if (isImage) {
+        element = {
+          id: newId, type: 'image', x: 20, y: 40 + zone.elements.length * 30,
+          width: 200, height: 150, note: null,
+          data: { src: content, sourceUrl: content, alt: sharedTitle || '' }
+        }
+      } else if (isUrl) {
+        element = {
+          id: newId, type: 'link', x: 20, y: 40 + zone.elements.length * 30,
+          width: 200, height: 40, note: null,
+          data: { url: content, label: sharedTitle || content }
+        }
+      } else {
+        element = {
+          id: newId, type: 'text', x: 20, y: 40 + zone.elements.length * 30,
+          width: 200, height: 60, note: null,
+          data: { content: content || sharedTitle }
+        }
+      }
+
+      zone.elements.push(element)
+
+      try {
+        const res = await fetch(`/api/board/${boardId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(boardData)
+        })
+        if (res.ok) {
+          status.textContent = 'Added! You can close this page.'
+          addBtn.disabled = true
+          addBtn.textContent = 'Added'
+          setTimeout(() => { window.location = `/#${boardId}` }, 1500)
+        } else {
+          status.textContent = 'Failed to save.'
+        }
+      } catch {
+        status.textContent = 'Network error.'
+      }
+    }
+  </script>
+</body>
+</html>

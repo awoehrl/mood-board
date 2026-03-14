@@ -11,8 +11,37 @@ const wss = new WebSocketServer({ server, path: '/ws' })
 
 const PORT = process.env.PORT || 3000
 
+// JSON body parsing for API
+app.use(express.json({ limit: '10mb' }))
+
 // Serve built frontend
 app.use(express.static(join(__dirname, 'dist')))
+
+// API: Get board data
+app.get('/api/board/:id', (req, res) => {
+  const room = rooms.get(req.params.id)
+  if (room?.board) {
+    res.json(room.board)
+  } else {
+    res.status(404).json({ error: 'Board not found' })
+  }
+})
+
+// API: Push board data (overwrites)
+app.post('/api/board/:id', (req, res) => {
+  const boardId = req.params.id
+  const room = getRoom(boardId)
+  room.board = req.body
+  // Broadcast to all connected clients
+  broadcast(room, { type: 'sync', board: room.board })
+  res.json({ ok: true })
+})
+
+// Share target page
+app.get('/share', (req, res) => {
+  res.sendFile(join(__dirname, 'dist', 'share.html'))
+})
+
 app.get('/{*splat}', (req, res) => {
   res.sendFile(join(__dirname, 'dist', 'index.html'))
 })

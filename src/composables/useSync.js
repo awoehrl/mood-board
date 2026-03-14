@@ -160,8 +160,14 @@ export function useSync() {
 
   onMounted(() => {
     boardId.value = getBoardId()
+    // Save board ID for share page to use
+    localStorage.setItem('mood-board-last-board', boardId.value)
     loadLocal()
     connect()
+    // Register service worker for PWA + share target
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    }
   })
 
   onUnmounted(() => {
