@@ -1,9 +1,12 @@
 <script setup>
+import { ref } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
 import { compressImage } from '../../utils/clipboard.js'
+import { arrangeByColor } from '../../utils/colorSort.js'
 
 const emit = defineEmits(['show-color-picker'])
 const store = useBoardStore()
+const arranging = ref(false)
 
 function addImage() {
   const input = document.createElement('input')
@@ -39,6 +42,17 @@ function addText() {
   store.addElement(store.selectedZoneId, { type: 'text', width: 200, height: 80, data: { content: '' } })
 }
 
+async function autoArrange() {
+  const zone = store.zones.find(z => z.id === store.selectedZoneId)
+  if (!zone || !zone.elements.length) return
+  arranging.value = true
+  try {
+    await arrangeByColor(zone)
+  } finally {
+    arranging.value = false
+  }
+}
+
 function deleteSelected() {
   if (store.selectedElementId && store.selectedZoneId) {
     store.deleteElement(store.selectedZoneId, store.selectedElementId)
@@ -65,6 +79,11 @@ function deleteSelected() {
     <button class="el-btn" @click="emit('show-color-picker')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-1 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-5.5-4.5-9.99-10-9.99z"/><circle cx="7.5" cy="11.5" r="1.5" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.5" fill="currentColor"/><circle cx="16.5" cy="11.5" r="1.5" fill="currentColor"/><circle cx="13.5" cy="7.5" r="1.5" fill="currentColor"/></svg>
       Color
+    </button>
+    <span class="el-sep" />
+    <button class="el-btn" @click="autoArrange" :disabled="arranging">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+      {{ arranging ? 'Sorting...' : 'Arrange' }}
     </button>
     <span class="el-sep" />
     <button class="el-btn el-btn--danger" @click="deleteSelected">
