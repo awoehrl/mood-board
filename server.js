@@ -14,6 +14,15 @@ const PORT = process.env.PORT || 3000
 // JSON body parsing for API
 app.use(express.json({ limit: '10mb' }))
 
+// CORS for API endpoints (allows transfer from localhost)
+app.use('/api', (req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.set('Access-Control-Allow-Headers', 'Content-Type')
+  if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
+})
+
 // Serve built frontend
 app.use(express.static(join(__dirname, 'dist')))
 

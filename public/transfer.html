@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>Transfer Board</title>
+<style>body{font-family:system-ui;padding:20px;max-width:500px;margin:0 auto}h1{font-size:18px}pre{background:#f5f5f5;padding:12px;border-radius:8px;font-size:12px;overflow:auto;max-height:300px}.btn{display:block;width:100%;padding:12px;font-size:16px;border-radius:8px;border:none;color:white;background:#2eaadc;margin:8px 0;cursor:pointer}.btn:disabled{opacity:.4}.status{padding:8px;margin:8px 0;border-radius:4px;font-size:14px}</style>
+</head>
+<body>
+<h1>Transfer Local Board Data</h1>
+<div id="info"></div>
+<button class="btn" id="transferBtn" disabled>Push to Live Board</button>
+<div id="status"></div>
+<pre id="preview"></pre>
+<script>
+const LIVE_URL = 'https://mood-board-72be.onrender.com'
+const LIVE_BOARD_ID = 'f91c9ace'
+
+const info = document.getElementById('info')
+const btn = document.getElementById('transferBtn')
+const status = document.getElementById('status')
+const preview = document.getElementById('preview')
+
+// Find all mood-board data in localStorage
+const keys = Object.keys(localStorage).filter(k => k.startsWith('mood-board-'))
+info.innerHTML = `<p>Found ${keys.length} mood-board keys in localStorage:</p><ul>${keys.map(k => `<li>${k}</li>`).join('')}</ul>`
+
+// Find the board data key (not user-id, user-name, etc)
+const boardKey = keys.find(k => {
+  try { const d = JSON.parse(localStorage.getItem(k)); return d && d.zones; } catch { return false; }
+})
+
+let boardData = null
+if (boardKey) {
+  boardData = JSON.parse(localStorage.getItem(boardKey))
+  const zoneInfo = boardData.zones.map(z => `${z.name}: ${z.elements.length} elements`).join(', ')
+  info.innerHTML += `<p><strong>Board found:</strong> ${boardKey}<br>${boardData.zones.length} zones (${zoneInfo})</p>`
+  preview.textContent = JSON.stringify(boardData, null, 2).slice(0, 2000) + '...'
+  btn.disabled = false
+} else {
+  info.innerHTML += '<p>No board data found in localStorage.</p>'
+}
+
+btn.onclick = async () => {
+  if (!boardData) return
+  btn.disabled = true
+  status.textContent = 'Pushing to live board...'
+  status.style.background = '#fffde7'
+  try {
+    const res = await fetch(`${LIVE_URL}/api/board/${LIVE_BOARD_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(boardData)
+    })
+    if (res.ok) {
+      status.textContent = 'Success! Data pushed to live board. Refresh the live URL to see it.'
+      status.style.background = '#e8f5e9'
+    } else {
+      status.textContent = `Failed: ${res.status} ${res.statusText}`
+      status.style.background = '#ffebee'
+      btn.disabled = false
+    }
+  } catch (e) {
+    status.textContent = `Error: ${e.message}. The live server might need CORS headers.`
+    status.style.background = '#ffebee'
+    btn.disabled = false
+  }
+}
+</script>
+</body>
+</html>
