@@ -77,12 +77,7 @@ export async function getElementColor(el) {
   return { r: 180, g: 180, b: 180 }
 }
 
-const ZONE_PAD = 12
-const ZONE_MAX_WIDTH = 700
-const ZONE_HEADER = 36
-const CELL_W = 200
-const CELL_H = 150
-const ZONE_GAP = 40
+import { ZONE_PAD, ZONE_MAX_WIDTH, ZONE_HEADER, CELL_W, CELL_H, ZONE_GAP } from './gridConstants.js'
 
 // Sort elements by color within a single zone and re-layout on grid
 async function sortAndLayoutZone(zone) {

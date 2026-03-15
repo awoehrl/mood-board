@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { newId } from '../utils/ids.js'
+import { ZONE_PAD, ZONE_MAX_WIDTH, ZONE_HEADER, CELL_W, CELL_H } from '../utils/gridConstants.js'
 
 const DEFAULT_ZONE_COLORS = [
   '#3b82f6', '#ef4444', '#10b981', '#f59e0b',
@@ -8,9 +9,6 @@ const DEFAULT_ZONE_COLORS = [
 ]
 
 const MAX_UNDO = 50
-const ZONE_PAD = 12
-const ZONE_MAX_WIDTH = 700
-const ZONE_HEADER = 36
 
 export const useBoardStore = defineStore('board', () => {
   const name = ref('My House Renovation')
@@ -51,29 +49,29 @@ export const useBoardStore = defineStore('board', () => {
     redoStack.value = []
   }
 
-  function undo() {
-    if (!undoStack.value.length) return
-    _undoRedoInProgress = true
-    redoStack.value.push(JSON.stringify(exportBoard()))
-    const snapshot = undoStack.value.pop()
+  function restoreSnapshot(snapshot) {
     const data = JSON.parse(snapshot)
-    // Restore board data without clearing selection
     name.value = data.name || 'My House Renovation'
     zones.value = data.zones || []
     colorIndex = zones.value.length
-    _undoRedoInProgress = false
+  }
+
+  function undo() {
+    if (!undoStack.value.length) return
+    _undoRedoInProgress = true
+    try {
+      redoStack.value.push(JSON.stringify(exportBoard()))
+      restoreSnapshot(undoStack.value.pop())
+    } finally { _undoRedoInProgress = false }
   }
 
   function redo() {
     if (!redoStack.value.length) return
     _undoRedoInProgress = true
-    undoStack.value.push(JSON.stringify(exportBoard()))
-    const snapshot = redoStack.value.pop()
-    const data = JSON.parse(snapshot)
-    name.value = data.name || 'My House Renovation'
-    zones.value = data.zones || []
-    colorIndex = zones.value.length
-    _undoRedoInProgress = false
+    try {
+      undoStack.value.push(JSON.stringify(exportBoard()))
+      restoreSnapshot(redoStack.value.pop())
+    } finally { _undoRedoInProgress = false }
   }
 
   function clearUndoHistory() {
@@ -84,9 +82,8 @@ export const useBoardStore = defineStore('board', () => {
   let colorIndex = 0
 
   function addZone(opts = {}) {
-    // Start small: 2 image columns wide, 1 row tall + empty space
-    const defaultW = ZONE_PAD + 2 * (200 + ZONE_PAD) // ~436px
-    const defaultH = ZONE_HEADER + ZONE_PAD + 150 + ZONE_PAD // ~210px
+    const defaultW = ZONE_PAD + 2 * (CELL_W + ZONE_PAD)
+    const defaultH = ZONE_HEADER + ZONE_PAD + CELL_H + ZONE_PAD
     const zone = {
       id: newId(),
       name: opts.name || 'New Room',
@@ -120,23 +117,21 @@ export const useBoardStore = defineStore('board', () => {
   function relayoutZone(zone) {
     if (!zone.elements.length) return
     // Use a uniform cell size based on the most common element type (images: 200x150)
-    const cellW = 200, cellH = 150
-    const cols = Math.max(1, Math.floor((ZONE_MAX_WIDTH - ZONE_PAD) / (cellW + ZONE_PAD)))
-    // Set zone width to fit the columns exactly
-    zone.width = ZONE_PAD + cols * (cellW + ZONE_PAD)
+    const cols = Math.max(1, Math.floor((ZONE_MAX_WIDTH - ZONE_PAD) / (CELL_W + ZONE_PAD)))
+    zone.width = ZONE_PAD + cols * (CELL_W + ZONE_PAD)
 
     for (let i = 0; i < zone.elements.length; i++) {
       const el = zone.elements[i]
       const col = i % cols
       const row = Math.floor(i / cols)
-      el.width = cellW
-      el.height = cellH
-      el.x = ZONE_PAD + col * (cellW + ZONE_PAD)
-      el.y = ZONE_PAD + row * (cellH + ZONE_PAD)
+      el.width = CELL_W
+      el.height = CELL_H
+      el.x = ZONE_PAD + col * (CELL_W + ZONE_PAD)
+      el.y = ZONE_PAD + row * (CELL_H + ZONE_PAD)
     }
 
     const totalRows = Math.ceil(zone.elements.length / cols)
-    zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (cellH + ZONE_PAD)
+    zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (CELL_H + ZONE_PAD)
   }
 
   function autoResizeZone(zone) {
@@ -225,8 +220,8 @@ export const useBoardStore = defineStore('board', () => {
     // Re-layout fills gaps left by deleted elements and resizes
     relayoutZone(zone)
     if (!zone.elements.length) {
-      const defaultW = ZONE_PAD + 2 * (200 + ZONE_PAD)
-      const defaultH = ZONE_HEADER + ZONE_PAD + 150 + ZONE_PAD
+      const defaultW = ZONE_PAD + 2 * (CELL_W + ZONE_PAD)
+      const defaultH = ZONE_HEADER + ZONE_PAD + CELL_H + ZONE_PAD
       zone.width = defaultW
       zone.height = defaultH
     }

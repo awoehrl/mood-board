@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useBoardStore } from '../../stores/board.js'
 import ImageElement from '../elements/ImageElement.vue'
 import LinkElement from '../elements/LinkElement.vue'
@@ -29,7 +30,7 @@ let undoPushedForDrag = false
 const hasNotes = computed(() => !!(props.zone.description?.trim()))
 const renderedNotes = computed(() => {
   if (!props.zone.description?.trim()) return ''
-  return marked.parse(props.zone.description)
+  return DOMPurify.sanitize(marked.parse(props.zone.description))
 })
 
 function getScale() {

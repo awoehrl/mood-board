@@ -218,8 +218,43 @@ function relayoutZone(zone) {
   zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (cellH + ZONE_PAD)
 }
 
+// Shared element creation logic
+const IMAGE_URL_RE = /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i
+
+function createElement(zone, { url, text, title, imageSrc }) {
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
+
+  if (imageSrc) {
+    const w = 200, h = 150, pos = findNextSlot(zone, w, h)
+    return { id, type: 'image', ...pos, width: w, height: h, note: text || null, data: { src: imageSrc, sourceUrl: url || null, alt: title || 'Shared image' } }
+  }
+  if (url && IMAGE_URL_RE.test(url)) {
+    const w = 200, h = 150, pos = findNextSlot(zone, w, h)
+    return { id, type: 'image', ...pos, width: w, height: h, note: text || null, data: { src: url, sourceUrl: url, alt: title || '' } }
+  }
+  if (url) {
+    const w = 240, h = 56, pos = findNextSlot(zone, w, h)
+    return { id, type: 'link', ...pos, width: w, height: h, note: text || null, data: { url, label: title || text || url } }
+  }
+  const w = 200, h = 80, pos = findNextSlot(zone, w, h)
+  return { id, type: 'text', ...pos, width: w, height: h, note: null, data: { content: text || title || '' } }
+}
+
+function resolveZone(board, { zoneId, zoneName }) {
+  if (zoneId) return board.zones.find(z => z.id === zoneId)
+  if (zoneName) return board.zones.find(z => z.name.toLowerCase() === zoneName.toLowerCase())
+  return board.zones[0]
+}
+
+function addElementToZone(room, boardId, zone, element) {
+  zone.elements.push(element)
+  autoResizeZone(zone)
+  room.version = (room.version || 0) + 1
+  broadcast(room, { type: 'sync', board: room.board, version: room.version })
+  debouncedSave(boardId, { ...room.board, _version: room.version })
+}
+
 // API: Add a single element to a board zone
-// Accepts: { url, text, title, image (base64), zoneName/zoneId }
 app.post('/api/board/:id/add', async (req, res) => {
   const boardId = req.params.id
   const room = await getRoom(boardId)
@@ -227,83 +262,20 @@ app.post('/api/board/:id/add', async (req, res) => {
     return res.status(404).json({ error: 'Board has no zones yet. Open the app and create a zone first.' })
   }
   const { zoneId, zoneName, url, text, title, image } = req.body
-  const zone = zoneId
-    ? room.board.zones.find(z => z.id === zoneId)
-    : zoneName
-      ? room.board.zones.find(z => z.name.toLowerCase() === zoneName.toLowerCase())
-      : room.board.zones[0]
+  const zone = resolveZone(room.board, { zoneId, zoneName })
   if (!zone) return res.status(404).json({ error: 'Zone not found', available: room.board.zones.map(z => z.name) })
 
-  const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
-  let element
-
-  // Base64 image upload
+  // Upload base64 image to Supabase if available
+  let imageSrc = null
   if (image) {
-    let src = image
+    imageSrc = image
     try {
-      if (SUPABASE_URL && SUPABASE_SERVICE_KEY) src = await uploadToSupabase(image)
+      if (SUPABASE_URL && SUPABASE_SERVICE_KEY) imageSrc = await uploadToSupabase(image)
     } catch { /* keep base64 */ }
-    const w = 200, h = 150
-    const pos = findNextSlot(zone, w, h)
-    element = {
-      id, type: 'image', ...pos, width: w, height: h, note: null,
-      data: { src, sourceUrl: url || null, alt: title || 'Shared image' }
-    }
-  }
-  // Text + URL together: save text as note on a link element
-  else if (text && url) {
-    const isImageUrl = /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i.test(url)
-    if (isImageUrl) {
-      const w = 200, h = 150
-      const pos = findNextSlot(zone, w, h)
-      element = {
-        id, type: 'image', ...pos, width: w, height: h, note: text || null,
-        data: { src: url, sourceUrl: url, alt: title || '' }
-      }
-    } else {
-      const w = 240, h = 56
-      const pos = findNextSlot(zone, w, h)
-      element = {
-        id, type: 'link', ...pos, width: w, height: h, note: text || null,
-        data: { url, label: title || text || url }
-      }
-    }
-  }
-  // URL only
-  else if (url) {
-    const isImageUrl = /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i.test(url)
-    if (isImageUrl) {
-      const w = 200, h = 150
-      const pos = findNextSlot(zone, w, h)
-      element = {
-        id, type: 'image', ...pos, width: w, height: h, note: null,
-        data: { src: url, sourceUrl: url, alt: title || '' }
-      }
-    } else {
-      const w = 240, h = 56
-      const pos = findNextSlot(zone, w, h)
-      element = {
-        id, type: 'link', ...pos, width: w, height: h, note: null,
-        data: { url, label: title || url }
-      }
-    }
-  }
-  // Text only
-  else {
-    const content = text || title || ''
-    const w = 200, h = 80
-    const pos = findNextSlot(zone, w, h)
-    element = {
-      id, type: 'text', ...pos, width: w, height: h, note: null,
-      data: { content }
-    }
   }
 
-  zone.elements.push(element)
-  autoResizeZone(zone)
-  room.version = (room.version || 0) + 1
-  broadcast(room, { type: 'sync', board: room.board, version: room.version })
-  debouncedSave(boardId, { ...room.board, _version: room.version })
+  const element = createElement(zone, { url, text, title, imageSrc })
+  addElementToZone(room, boardId, zone, element)
   res.json({ ok: true, zone: zone.name, type: element.type })
 })
 
@@ -320,39 +292,15 @@ app.get('/api/board/:id/add-simple', async (req, res) => {
   const boardId = req.params.id
   const { url, text, zone: zoneName } = req.query
   if (!url && !text) return res.json({ error: 'Provide url or text param' })
-  // Reuse the POST logic by faking a request body
   const room = await getRoom(boardId)
   if (!room.board?.zones?.length) {
     return res.json({ error: 'Board has no zones' })
   }
-  const zone = zoneName
-    ? room.board.zones.find(z => z.name.toLowerCase() === zoneName.toLowerCase())
-    : room.board.zones[0]
+  const zone = resolveZone(room.board, { zoneName })
   if (!zone) return res.json({ error: 'Zone not found', available: room.board.zones.map(z => z.name) })
 
-  const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
-  let element
-  const isImageUrl = url && /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i.test(url)
-
-  if (isImageUrl) {
-    const w = 200, h = 150
-    const pos = findNextSlot(zone, w, h)
-    element = { id, type: 'image', ...pos, width: w, height: h, note: text || null, data: { src: url, sourceUrl: url, alt: '' } }
-  } else if (url) {
-    const w = 240, h = 56
-    const pos = findNextSlot(zone, w, h)
-    element = { id, type: 'link', ...pos, width: w, height: h, note: text || null, data: { url, label: text || url } }
-  } else {
-    const w = 200, h = 80
-    const pos = findNextSlot(zone, w, h)
-    element = { id, type: 'text', ...pos, width: w, height: h, note: null, data: { content: text } }
-  }
-
-  zone.elements.push(element)
-  autoResizeZone(zone)
-  room.version = (room.version || 0) + 1
-  broadcast(room, { type: 'sync', board: room.board, version: room.version })
-  debouncedSave(boardId, { ...room.board, _version: room.version })
+  const element = createElement(zone, { url, text })
+  addElementToZone(room, boardId, zone, element)
   res.json({ ok: true, zone: zone.name, type: element.type })
 })
 
