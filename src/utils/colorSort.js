@@ -137,12 +137,16 @@ export async function arrangeAllZones(zones) {
   // Sort and layout elements within each zone
   await Promise.all(zones.map(zone => sortAndLayoutZone(zone)))
 
-  // Stack zones vertically with gap
+  // Arrange zones in 2 columns
   const startX = 100
-  let y = 100
+  const startY = 100
+  const colHeights = [startY, startY] // track bottom of each column
+
   for (const zone of zones) {
-    zone.x = startX
-    zone.y = y
-    y += zone.height + ZONE_GAP
+    // Place in the shorter column
+    const col = colHeights[0] <= colHeights[1] ? 0 : 1
+    zone.x = startX + col * (ZONE_MAX_WIDTH + ZONE_GAP)
+    zone.y = colHeights[col]
+    colHeights[col] += zone.height + ZONE_GAP
   }
 }
