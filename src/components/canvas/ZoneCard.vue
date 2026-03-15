@@ -53,7 +53,7 @@ function getScale() {
 
 function onZonePointerDown(e) {
   if (isResizing.value) return
-  if (e.target.closest('[data-element]') || e.target.closest('[data-resize]') || e.target.closest('.zone-notes-card')) return
+  if (e.target.closest('[data-element]') || e.target.closest('[data-resize]') || e.target.closest('.zone-notes-card') || e.target.closest('[data-editable]')) return
   store.selectZone(props.zone.id)
 
   // On touch, only allow dragging from the header
@@ -144,7 +144,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         @blur="saveName" @keydown.enter="saveName" @keydown.escape="isEditingName = false"
         autofocus @pointerdown.stop
       />
-      <span v-else class="zone-name" @dblclick.stop="startEditName">{{ zone.name }}</span>
+      <span v-else class="zone-name" data-editable @click.stop="startEditName">{{ zone.name }}</span>
       <input
         v-if="isEditingArea"
         v-model="editArea"
@@ -157,8 +157,8 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         autofocus
         @pointerdown.stop
       />
-      <span v-else-if="zone.area" class="zone-area" @click.stop="startEditArea">{{ zone.area }} m²</span>
-      <span v-else class="zone-area-empty" @click.stop="startEditArea">m²</span>
+      <span v-else-if="zone.area" class="zone-area" data-editable @click.stop="startEditArea">{{ zone.area }} m²</span>
+      <span v-else class="zone-area-empty" data-editable @click.stop="startEditArea">m²</span>
     </div>
 
     <!-- Pinned notes card — between header and elements -->
