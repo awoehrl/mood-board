@@ -204,7 +204,7 @@ defineExpose({ canvas })
 
 <style scoped>
 .viewport {
-  position: absolute;
+  position: fixed;
   top: 48px;
   left: 0; right: 0; bottom: 0;
   overflow: hidden;
@@ -218,6 +218,6 @@ defineExpose({ canvas })
   background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px);
 }
 @media (max-width: 640px) {
-  .viewport { top: 84px; }
+  .viewport { top: 88px; }
 }
 </style>

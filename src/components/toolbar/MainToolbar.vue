@@ -154,7 +154,7 @@ function onFileSelected(e) {
 
 <style scoped>
 .topbar {
-  position: absolute;
+  position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 30;
   height: 48px;
@@ -164,7 +164,6 @@ function onFileSelected(e) {
   padding: 0 12px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px);
 }
 .topbar-left, .topbar-right {
   display: flex;
@@ -324,12 +323,12 @@ function onFileSelected(e) {
   .zone-bar {
     order: 3;
     width: 100%;
+    height: 40px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     padding: 4px 12px;
     border-top: 1px solid var(--border);
     background: var(--bg);
-    backdrop-filter: blur(12px);
   }
   .zone-chip { height: 32px; padding: 0 10px; flex-shrink: 0; }
   .add-zone-btn { flex-shrink: 0; }

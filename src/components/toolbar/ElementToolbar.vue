@@ -182,7 +182,7 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
 
 <style scoped>
 .el-bar {
-  position: absolute;
+  position: fixed;
   bottom: 16px;
   left: 50%; transform: translateX(-50%);
   z-index: 30;
