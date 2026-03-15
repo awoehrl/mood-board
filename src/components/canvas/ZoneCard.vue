@@ -28,6 +28,16 @@ let resizeStart = null
 let undoPushedForDrag = false
 
 const hasNotes = computed(() => !!(props.zone.description?.trim()))
+
+// Compute the height needed for the element grid (elements are absolutely positioned)
+const gridHeight = computed(() => {
+  if (!props.zone.elements.length) return 0
+  let maxBottom = 0
+  for (const el of props.zone.elements) {
+    maxBottom = Math.max(maxBottom, el.y + el.height)
+  }
+  return maxBottom + 12 // ZONE_PAD
+})
 const renderedNotes = computed(() => {
   if (!props.zone.description?.trim()) return ''
   return DOMPurify.sanitize(marked.parse(props.zone.description))
@@ -106,7 +116,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   <div
     data-zone
     class="zone"
-    :style="{ left: zone.x + 'px', top: zone.y + 'px', width: zone.width + 'px', height: zone.height + 'px' }"
+    :style="{ left: zone.x + 'px', top: zone.y + 'px', width: zone.width + 'px', minHeight: zone.height + 'px' }"
     @pointerdown="onZonePointerDown" @pointermove="onZonePointerMove" @pointerup="onZonePointerUp"
   >
     <!-- Background card -->
@@ -144,7 +154,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
     </div>
 
     <!-- Elements container -->
-    <div class="zone-body">
+    <div class="zone-body" :style="{ height: gridHeight + 'px' }">
       <!-- Grid elements -->
       <div
         v-for="el in zone.elements" :key="el.id"
@@ -227,8 +237,6 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 .zone-body {
   position: relative;
   overflow: hidden;
-  flex: 1;
-  min-height: 0;
 }
 
 /* Pinned notes card */
