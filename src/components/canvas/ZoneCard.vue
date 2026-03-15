@@ -1,11 +1,15 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { marked } from 'marked'
 import { useBoardStore } from '../../stores/board.js'
 import ImageElement from '../elements/ImageElement.vue'
 import LinkElement from '../elements/LinkElement.vue'
 import TextElement from '../elements/TextElement.vue'
 import ColorSwatch from '../elements/ColorSwatch.vue'
 import NoteOverlay from '../elements/NoteOverlay.vue'
+
+// Configure marked for safe, minimal output
+marked.setOptions({ breaks: true, gfm: true })
 
 const props = defineProps({ zone: Object })
 const store = useBoardStore()
@@ -15,12 +19,17 @@ const isDragging = ref(false)
 const isResizing = ref(false)
 const isEditingName = ref(false)
 const editName = ref('')
-const showNotes = ref(false)
 const isEditingNotes = ref(false)
 const editNotesText = ref('')
 let dragOffset = null
 let resizeStart = null
 let undoPushedForDrag = false
+
+const hasNotes = computed(() => !!(props.zone.description?.trim()))
+const renderedNotes = computed(() => {
+  if (!props.zone.description?.trim()) return ''
+  return marked.parse(props.zone.description)
+})
 
 function getScale() {
   const layer = document.querySelector('[data-canvas-layer]')
@@ -30,7 +39,7 @@ function getScale() {
 
 function onZonePointerDown(e) {
   if (isResizing.value) return
-  if (e.target.closest('[data-element]') || e.target.closest('[data-resize]')) return
+  if (e.target.closest('[data-element]') || e.target.closest('[data-resize]') || e.target.closest('.zone-notes-card')) return
   store.selectZone(props.zone.id)
 
   // On touch, only allow dragging from the header
@@ -70,11 +79,7 @@ function saveName() {
   if (editName.value.trim()) store.updateZone(props.zone.id, { name: editName.value.trim() })
   isEditingName.value = false
 }
-function toggleNotes(e) {
-  e.stopPropagation()
-  showNotes.value = !showNotes.value
-  isEditingNotes.value = false
-}
+
 function startEditNotes(e) {
   e.stopPropagation()
   editNotesText.value = props.zone.description || ''
@@ -91,8 +96,6 @@ function onElementPointerDown(e, el) {
   store.selectElement(props.zone.id, el.id, additive)
   e.stopPropagation()
 }
-
-const hasNotes = computed(() => !!(props.zone.description?.trim()))
 
 const componentMap = { image: ImageElement, link: LinkElement, text: TextElement, 'color-swatch': ColorSwatch }
 </script>
@@ -117,31 +120,30 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         autofocus @pointerdown.stop
       />
       <span v-else class="zone-name" @dblclick.stop="startEditName">{{ zone.name }}</span>
-      <button class="notes-toggle" :class="{ active: showNotes, 'has-notes': hasNotes }" @pointerdown.stop="toggleNotes" title="Room notes">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3h8M3 6h8M3 9h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      </button>
       <span class="zone-count">{{ zone.elements.length }}</span>
     </div>
 
-    <!-- Collapsible notes -->
-    <div v-if="showNotes" class="zone-notes" @pointerdown.stop>
-      <textarea
-        v-if="isEditingNotes"
-        v-model="editNotesText"
-        class="notes-editor"
-        @blur="saveNotes"
-        @keydown.escape="isEditingNotes = false"
-        placeholder="Add notes for this room..."
-        autofocus
-      />
-      <div v-else class="notes-display" @dblclick="startEditNotes" @click="startEditNotes">
-        <pre v-if="zone.description?.trim()" class="notes-text">{{ zone.description }}</pre>
-        <span v-else class="notes-placeholder">Click to add notes...</span>
-      </div>
-    </div>
-
     <!-- Elements container -->
-    <div class="zone-body" :style="{ height: showNotes ? 'auto' : undefined }">
+    <div class="zone-body">
+      <!-- Pinned notes card — first item in the zone -->
+      <div class="zone-notes-card" @pointerdown.stop>
+        <textarea
+          v-if="isEditingNotes"
+          v-model="editNotesText"
+          class="notes-editor"
+          @blur="saveNotes"
+          @keydown.escape="isEditingNotes = false"
+          placeholder="Add notes (markdown supported)..."
+          autofocus
+        />
+        <div v-else-if="hasNotes" class="notes-rendered" @click="startEditNotes" v-html="renderedNotes" />
+        <div v-else class="notes-empty" @click="startEditNotes">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 3h8M3 6h8M3 9h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <span>Add notes...</span>
+        </div>
+      </div>
+
+      <!-- Grid elements -->
       <div
         v-for="el in zone.elements" :key="el.id"
         data-element
@@ -218,77 +220,108 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   font-variant-numeric: tabular-nums;
 }
 
-.notes-toggle {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  opacity: 0;
-  transition: opacity 0.15s, background 0.1s;
-  flex-shrink: 0;
-}
-.zone:hover .notes-toggle,
-.notes-toggle.active,
-.notes-toggle.has-notes { opacity: 1; }
-.notes-toggle.has-notes { color: var(--text-secondary); }
-.notes-toggle.active { background: var(--active); color: var(--text); }
-.notes-toggle:hover { background: var(--hover); color: var(--text); }
-
-.zone-notes {
-  position: relative;
-  padding: 0 12px 8px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-.notes-editor {
-  width: 100%;
-  min-height: 80px;
-  max-height: 180px;
-  padding: 6px 8px;
-  font-size: 11px;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  line-height: 1.5;
-  color: var(--text);
-  background: var(--hover);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  outline: none;
-  resize: vertical;
-}
-.notes-editor:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.notes-display {
-  cursor: text;
-  min-height: 28px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  transition: background 0.1s;
-}
-.notes-display:hover { background: var(--hover); }
-.notes-text {
-  font-size: 11px;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  margin: 0;
-}
-.notes-placeholder {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
 .zone-body {
   position: relative;
   overflow: hidden;
   height: calc(100% - 36px);
 }
+
+/* Pinned notes card */
+.zone-notes-card {
+  position: relative;
+  margin: 0 12px 8px;
+  z-index: 5;
+}
+.notes-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.zone:hover .notes-empty { opacity: 1; }
+.notes-empty:hover { background: var(--hover); color: var(--text-secondary); }
+
+.notes-editor {
+  width: 100%;
+  min-height: 80px;
+  max-height: 300px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: vertical;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.notes-rendered {
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: text;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+}
+.notes-rendered:hover {
+  border-color: var(--border-heavy);
+}
+
+/* Markdown rendered styles */
+.notes-rendered :deep(h1),
+.notes-rendered :deep(h2),
+.notes-rendered :deep(h3),
+.notes-rendered :deep(h4) {
+  font-weight: 600;
+  color: var(--text);
+  margin: 8px 0 4px;
+  line-height: 1.3;
+}
+.notes-rendered :deep(h1) { font-size: 14px; }
+.notes-rendered :deep(h2) { font-size: 13px; }
+.notes-rendered :deep(h3) { font-size: 12px; }
+.notes-rendered :deep(h4) { font-size: 11px; }
+.notes-rendered :deep(p) { margin: 4px 0; }
+.notes-rendered :deep(ul),
+.notes-rendered :deep(ol) {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.notes-rendered :deep(li) { margin: 2px 0; }
+.notes-rendered :deep(li ul),
+.notes-rendered :deep(li ol) { margin: 0; }
+.notes-rendered :deep(strong) { color: var(--text); font-weight: 600; }
+.notes-rendered :deep(code) {
+  font-size: 10px;
+  background: var(--hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.notes-rendered :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+.notes-rendered :deep(img) {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  margin: 4px 0;
+}
+.notes-rendered :deep(*:first-child) { margin-top: 0; }
+.notes-rendered :deep(*:last-child) { margin-bottom: 0; }
 
 .element-wrap {
   position: absolute;
@@ -323,5 +356,6 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   .zone-header { height: 44px; }
   .zone-body { height: calc(100% - 44px); }
   .zone-resize { width: 32px; height: 32px; }
+  .notes-empty { opacity: 1; }
 }
 </style>
