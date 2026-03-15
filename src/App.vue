@@ -9,6 +9,8 @@ import ElementToolbar from './components/toolbar/ElementToolbar.vue'
 import ImageSourceModal from './components/modals/ImageSourceModal.vue'
 import ColorPickerModal from './components/modals/ColorPickerModal.vue'
 import OnboardingModal from './components/modals/OnboardingModal.vue'
+import LinkInputModal from './components/modals/LinkInputModal.vue'
+import ConfirmModal from './components/modals/ConfirmModal.vue'
 import ToastContainer from './components/ui/ToastContainer.vue'
 
 const store = useBoardStore()
@@ -17,6 +19,8 @@ const toast = useToast()
 
 const boardCanvas = ref(null)
 const showColorPicker = ref(false)
+const showLinkInput = ref(false)
+const showDeleteConfirm = ref(false)
 const imageSourceModal = ref(null)
 
 const needsOnboarding = computed(() => !localStorage.getItem('mood-board-user-name'))
@@ -59,6 +63,23 @@ function onShowImageSourceModal({ zoneId, elementId }) {
   imageSourceModal.value = { zoneId, elementId }
 }
 
+function onAddLink(url) {
+  if (!url || !store.selectedZoneId) return
+  store.pushUndo()
+  store.addElement(store.selectedZoneId, {
+    type: 'link', width: 240, height: 56,
+    data: { url, label: '' },
+  })
+}
+
+function onConfirmDeleteZone() {
+  if (store.selectedZoneId) {
+    store.pushUndo()
+    store.deleteZone(store.selectedZoneId)
+  }
+  showDeleteConfirm.value = false
+}
+
 function onCopyLink() {
   navigator.clipboard.writeText(window.location.href)
   toast.show('Link copied to clipboard', 'success')
@@ -88,6 +109,8 @@ function onKeyDown(e) {
   if (e.key === 'Escape') {
     store.clearSelection()
     showColorPicker.value = false
+    showLinkInput.value = false
+    showDeleteConfirm.value = false
     imageSourceModal.value = null
   }
 }
@@ -129,7 +152,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
       @copy-link="onCopyLink"
     />
 
-    <ElementToolbar @show-color-picker="showColorPicker = true" />
+    <ElementToolbar
+      @show-color-picker="showColorPicker = true"
+      @show-link-input="showLinkInput = true"
+      @show-delete-confirm="showDeleteConfirm = true"
+    />
 
     <ToastContainer />
 
@@ -141,5 +168,17 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
     />
 
     <ColorPickerModal v-if="showColorPicker" @close="showColorPicker = false" />
+
+    <LinkInputModal v-if="showLinkInput" @submit="onAddLink" @close="showLinkInput = false" />
+
+    <ConfirmModal
+      v-if="showDeleteConfirm"
+      title="Delete zone"
+      message="Delete this zone and all its elements?"
+      confirm-label="Delete"
+      :danger="true"
+      @confirm="onConfirmDeleteZone"
+      @cancel="showDeleteConfirm = false"
+    />
   </div>
 </template>

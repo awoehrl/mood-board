@@ -36,9 +36,12 @@ watch(showMenu, (open) => {
 })
 onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
 
-function addZone() {
-  const name = prompt('Room name:', 'New Room')
-  if (name) store.addZone({ name })
+const showNewZone = ref(false)
+const newZoneName = ref('')
+function startAddZone() { newZoneName.value = ''; showNewZone.value = true }
+function saveNewZone() {
+  if (newZoneName.value.trim()) store.addZone({ name: newZoneName.value.trim() })
+  showNewZone.value = false
 }
 
 function startEditName() { editName.value = store.name; isEditingName.value = true }
@@ -84,7 +87,17 @@ function onFileSelected(e) {
         <span class="chip-label">{{ zone.name }}</span>
       </button>
 
-      <button class="icon-btn add-zone-btn" @click="addZone" title="New zone">
+      <input
+        v-if="showNewZone"
+        v-model="newZoneName"
+        class="new-zone-input"
+        placeholder="Room name..."
+        @blur="saveNewZone"
+        @keydown.enter="saveNewZone"
+        @keydown.escape="showNewZone = false"
+        autofocus
+      />
+      <button v-else class="icon-btn add-zone-btn" @click="startAddZone" title="New zone">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
     </div>
@@ -200,6 +213,20 @@ function onFileSelected(e) {
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.new-zone-input {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  min-width: 100px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .conn-dot {

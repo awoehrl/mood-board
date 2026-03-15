@@ -48,7 +48,7 @@ function save() {
 
 <style scoped>
 .backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: var(--overlay); }
-.card { background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 24px; width: 300px; }
+.card { background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 24px; width: min(300px, calc(100vw - 32px)); }
 .heading { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 16px; letter-spacing: -0.01em; }
 .preview-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .preview-swatch { position: relative; }
