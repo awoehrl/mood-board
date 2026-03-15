@@ -3,6 +3,7 @@ import { useBoardStore } from '../../stores/board.js'
 import ZoneCard from './ZoneCard.vue'
 
 defineProps({ transform: String })
+const emit = defineEmits(['open-viewer'])
 
 const store = useBoardStore()
 </script>
@@ -17,6 +18,7 @@ const store = useBoardStore()
       v-for="zone in store.zones"
       :key="zone.id"
       :zone="zone"
+      @open-viewer="emit('open-viewer', $event)"
     />
   </div>
 </template>

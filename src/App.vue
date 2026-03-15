@@ -11,6 +11,7 @@ import ColorPickerModal from './components/modals/ColorPickerModal.vue'
 import OnboardingModal from './components/modals/OnboardingModal.vue'
 import LinkInputModal from './components/modals/LinkInputModal.vue'
 import ConfirmModal from './components/modals/ConfirmModal.vue'
+import ImageViewer from './components/modals/ImageViewer.vue'
 import ToastContainer from './components/ui/ToastContainer.vue'
 
 const store = useBoardStore()
@@ -22,6 +23,7 @@ const showColorPicker = ref(false)
 const showLinkInput = ref(false)
 const showDeleteConfirm = ref(false)
 const imageSourceModal = ref(null)
+const imageViewer = ref(null)
 
 const needsOnboarding = computed(() => !localStorage.getItem('mood-board-user-name'))
 const showOnboarding = ref(needsOnboarding.value)
@@ -118,6 +120,7 @@ function onKeyDown(e) {
     }
   }
   if (e.key === 'Escape') {
+    if (imageViewer.value) { imageViewer.value = null; return }
     store.clearSelection()
     showColorPicker.value = false
     showLinkInput.value = false
@@ -146,6 +149,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
     <BoardCanvas
       ref="boardCanvas"
       @show-image-source-modal="onShowImageSourceModal"
+      @open-viewer="imageViewer = $event"
     />
 
     <MainToolbar
@@ -182,6 +186,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
     <ColorPickerModal v-if="showColorPicker" @close="showColorPicker = false" />
 
     <LinkInputModal v-if="showLinkInput" @submit="onAddLink" @close="showLinkInput = false" />
+
+    <ImageViewer
+      v-if="imageViewer"
+      :zone-id="imageViewer.zoneId"
+      :element-id="imageViewer.elementId"
+      @close="imageViewer = null"
+    />
 
     <ConfirmModal
       v-if="showDeleteConfirm"

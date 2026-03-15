@@ -12,6 +12,7 @@ import NoteOverlay from '../elements/NoteOverlay.vue'
 marked.setOptions({ breaks: true, gfm: true })
 
 const props = defineProps({ zone: Object })
+const emit = defineEmits(['open-viewer'])
 const store = useBoardStore()
 
 const isSelected = computed(() => store.selectedZoneId === props.zone.id)
@@ -152,7 +153,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         :style="{ left: el.x + 'px', top: el.y + 'px', width: el.width + 'px', height: el.height + 'px' }"
         @pointerdown="onElementPointerDown($event, el)"
       >
-        <component :is="componentMap[el.type]" :element="el" :zone-id="zone.id" />
+        <component :is="componentMap[el.type]" :element="el" :zone-id="zone.id" @open-viewer="emit('open-viewer', { zoneId: zone.id, elementId: el.id })" />
         <NoteOverlay :element="el" :zone-id="zone.id" />
       </div>
     </div>

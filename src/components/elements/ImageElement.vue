@@ -4,6 +4,7 @@ import { useBoardStore } from '../../stores/board.js'
 import { getDomain } from '../../utils/clipboard.js'
 
 const props = defineProps({ element: Object, zoneId: String })
+const emit = defineEmits(['open-viewer'])
 const store = useBoardStore()
 const isEditingUrl = ref(false)
 const editUrl = ref('')
@@ -31,6 +32,11 @@ function saveUrl() {
     <div v-else class="img-el-empty">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
     </div>
+
+    <!-- Expand button -->
+    <button class="img-el-expand" @pointerdown.stop @click.stop="emit('open-viewer')" title="View full image">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M8.5 2H12v3.5M5.5 12H2V8.5M12 2L8 6M2 12l4-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
 
     <div v-if="element.data.sourceUrl && !isEditingUrl" class="img-el-bar">
       <a :href="element.data.sourceUrl" target="_blank" rel="noopener" class="img-el-link" @pointerdown.stop @click.stop>
@@ -92,4 +98,22 @@ function saveUrl() {
   outline: none;
 }
 .img-el-input:focus { border-color: var(--accent); }
+.img-el-expand {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity 0.15s;
+  backdrop-filter: blur(4px);
+}
+.group:hover .img-el-expand { opacity: 1; }
+.img-el-expand:hover { background: rgba(0, 0, 0, 0.7); }
 </style>

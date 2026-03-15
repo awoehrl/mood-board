@@ -19,7 +19,7 @@ let panStart = null
 let lastTouches = null
 let touchPanStart = null
 
-const emit = defineEmits(['show-image-source-modal'])
+const emit = defineEmits(['show-image-source-modal', 'open-viewer'])
 
 const { handleFileDrop, handlePaste } = useDragDrop(canvas, (zoneId, elId) => {
   emit('show-image-source-modal', { zoneId, elementId: elId })
@@ -218,7 +218,7 @@ defineExpose({ canvas })
         backgroundPosition: `${canvas.panX.value}px ${canvas.panY.value}px`,
       }"
     />
-    <CanvasLayer :transform="canvas.transform.value" />
+    <CanvasLayer :transform="canvas.transform.value" @open-viewer="emit('open-viewer', $event)" />
     <Minimap
       :pan-x="canvas.panX.value"
       :pan-y="canvas.panY.value"
