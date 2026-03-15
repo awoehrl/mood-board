@@ -187,6 +187,12 @@ function findNextSlot(zone, w, h) {
   return { x: ZONE_PAD, y: ZONE_PAD + zone.elements.length * (h + ZONE_PAD) }
 }
 
+function estimateNotesHeight(description) {
+  if (!description?.trim()) return 0
+  const lines = description.split('\n').length
+  return 20 + Math.max(lines, 1) * 18
+}
+
 function autoResizeZone(zone) {
   if (!zone.elements.length) return
   let maxRight = 0, maxBottom = 0
@@ -194,8 +200,9 @@ function autoResizeZone(zone) {
     maxRight = Math.max(maxRight, el.x + el.width)
     maxBottom = Math.max(maxBottom, el.y + el.height)
   }
+  const notesHeight = estimateNotesHeight(zone.description)
   const neededW = maxRight + ZONE_PAD
-  const neededH = ZONE_HEADER + maxBottom + ZONE_PAD
+  const neededH = ZONE_HEADER + notesHeight + maxBottom + ZONE_PAD
   zone.width = Math.min(ZONE_MAX_WIDTH, Math.max(zone.width, neededW))
   zone.height = Math.max(zone.height, neededH)
 }
@@ -215,7 +222,8 @@ function relayoutZone(zone) {
     el.y = ZONE_PAD + row * (cellH + ZONE_PAD)
   }
   const totalRows = Math.ceil(zone.elements.length / cols)
-  zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (cellH + ZONE_PAD)
+  const notesHeight = estimateNotesHeight(zone.description)
+  zone.height = ZONE_HEADER + notesHeight + ZONE_PAD + totalRows * (cellH + ZONE_PAD)
 }
 
 // Shared element creation logic

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { newId } from '../utils/ids.js'
-import { ZONE_PAD, ZONE_MAX_WIDTH, ZONE_HEADER, CELL_W, CELL_H } from '../utils/gridConstants.js'
+import { ZONE_PAD, ZONE_MAX_WIDTH, ZONE_HEADER, CELL_W, CELL_H, estimateNotesHeight } from '../utils/gridConstants.js'
 
 const DEFAULT_ZONE_COLORS = [
   '#3b82f6', '#ef4444', '#10b981', '#f59e0b',
@@ -131,7 +131,8 @@ export const useBoardStore = defineStore('board', () => {
     }
 
     const totalRows = Math.ceil(zone.elements.length / cols)
-    zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (CELL_H + ZONE_PAD)
+    const notesHeight = estimateNotesHeight(zone.description)
+    zone.height = ZONE_HEADER + notesHeight + ZONE_PAD + totalRows * (CELL_H + ZONE_PAD)
   }
 
   function autoResizeZone(zone) {
@@ -141,8 +142,9 @@ export const useBoardStore = defineStore('board', () => {
       maxRight = Math.max(maxRight, el.x + el.width)
       maxBottom = Math.max(maxBottom, el.y + el.height)
     }
+    const notesHeight = estimateNotesHeight(zone.description)
     const neededW = maxRight + ZONE_PAD
-    const neededH = ZONE_HEADER + maxBottom + ZONE_PAD
+    const neededH = ZONE_HEADER + notesHeight + maxBottom + ZONE_PAD
     zone.width = Math.min(ZONE_MAX_WIDTH, Math.max(zone.width, neededW))
     zone.height = Math.max(zone.height, neededH)
   }

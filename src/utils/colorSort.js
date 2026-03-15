@@ -77,7 +77,7 @@ export async function getElementColor(el) {
   return { r: 180, g: 180, b: 180 }
 }
 
-import { ZONE_PAD, ZONE_MAX_WIDTH, ZONE_HEADER, CELL_W, CELL_H, ZONE_GAP } from './gridConstants.js'
+import { ZONE_PAD, ZONE_MAX_WIDTH, ZONE_HEADER, CELL_W, CELL_H, ZONE_GAP, estimateNotesHeight } from './gridConstants.js'
 
 // Sort elements by color within a single zone and re-layout on grid
 async function sortAndLayoutZone(zone) {
@@ -121,7 +121,8 @@ async function sortAndLayoutZone(zone) {
   }
 
   const totalRows = Math.ceil(sorted.length / cols)
-  zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (CELL_H + ZONE_PAD)
+  const notesHeight = estimateNotesHeight(zone.description)
+  zone.height = ZONE_HEADER + notesHeight + ZONE_PAD + totalRows * (CELL_H + ZONE_PAD)
   zone.elements = sorted
 }
 
@@ -147,8 +148,6 @@ export async function arrangeAllZones(zones) {
     const col = colHeights[0] <= colHeights[1] ? 0 : 1
     zone.x = startX + col * (ZONE_MAX_WIDTH + ZONE_GAP)
     zone.y = colHeights[col]
-    // Estimate extra height for notes card (rendered via minHeight, not in zone.height)
-    const notesExtra = zone.description?.trim() ? 80 : 0
-    colHeights[col] += zone.height + notesExtra + ZONE_GAP
+    colHeights[col] += zone.height + ZONE_GAP
   }
 }
