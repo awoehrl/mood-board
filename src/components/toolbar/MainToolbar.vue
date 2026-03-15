@@ -143,7 +143,7 @@ function onFileSelected(e) {
             <button class="dropdown-item" @click="emit('fit-all'); showMenu = false">Fit to screen</button>
             <button v-if="store.selectedZoneId" class="dropdown-item" :disabled="arranging" @click="autoArrange(); showMenu = false">{{ arranging ? 'Sorting...' : 'Auto-arrange' }}</button>
             <div class="dropdown-sep" />
-            <a class="dropdown-item" href="/add-to-mood-board.shortcut" download @click="showMenu = false">Install iOS Shortcut</a>
+            <a class="dropdown-item" href="https://www.icloud.com/shortcuts/4bd8d647a043454d9bc9833508fb9a85" target="_blank" @click="showMenu = false">Install iOS Shortcut</a>
             <div class="dropdown-sep" />
             <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
             <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
