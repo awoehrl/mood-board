@@ -157,8 +157,8 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         autofocus
         @pointerdown.stop
       />
-      <span v-else-if="zone.area" class="zone-area" @dblclick.stop="startEditArea">{{ zone.area }} m²</span>
-      <span v-else class="zone-area-empty" @dblclick.stop="startEditArea">m²</span>
+      <span v-else-if="zone.area" class="zone-area" @click.stop="startEditArea">{{ zone.area }} m²</span>
+      <span v-else class="zone-area-empty" @click.stop="startEditArea">m²</span>
     </div>
 
     <!-- Pinned notes card — between header and elements -->
@@ -263,11 +263,11 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 .zone-area-empty {
   font-size: 11px;
   color: var(--text-muted);
-  opacity: 0;
-  cursor: text;
+  opacity: 0.4;
+  cursor: pointer;
   transition: opacity 0.15s;
 }
-.zone:hover .zone-area-empty { opacity: 0.5; }
+.zone-area-empty:hover { opacity: 0.7; }
 .zone-area-input {
   width: 50px;
   font-size: 11px;
