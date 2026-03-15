@@ -71,46 +71,6 @@ function onElementPointerDown(e, el) {
   const additive = e.shiftKey
   store.selectElement(props.zone.id, el.id, additive)
   e.stopPropagation()
-
-  // If the element is in the current selection, move ALL selected elements
-  const selected = store.selectedElementIds
-  const movingIds = selected.has(el.id) ? [...selected] : [el.id]
-
-  const s = getScale()
-  const sx = e.clientX, sy = e.clientY
-  let pushed = false
-  const isTouch = e.pointerType === 'touch'
-  let thresholdMet = !isTouch // Mouse: immediate; Touch: needs 8px
-
-  // Capture initial positions for all moving elements
-  const zone = props.zone
-  const initials = {}
-  for (const id of movingIds) {
-    const elem = zone.elements.find((x) => x.id === id)
-    if (elem) initials[id] = { x: elem.x, y: elem.y }
-  }
-
-  const onMove = (ev) => {
-    if (!thresholdMet) {
-      const dist = Math.hypot(ev.clientX - sx, ev.clientY - sy)
-      if (dist < 8) return
-      thresholdMet = true
-    }
-    if (!pushed) { store.pushUndo(); pushed = true }
-    const dx = (ev.clientX - sx) / s
-    const dy = (ev.clientY - sy) / s
-    for (const id of movingIds) {
-      if (initials[id]) {
-        store.updateElement(props.zone.id, id, {
-          x: initials[id].x + dx,
-          y: initials[id].y + dy,
-        })
-      }
-    }
-  }
-  const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp) }
-  window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', onUp)
 }
 
 const componentMap = { image: ImageElement, link: LinkElement, text: TextElement, 'color-swatch': ColorSwatch }
@@ -225,7 +185,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 
 .element-wrap {
   position: absolute;
-  cursor: move;
+  cursor: pointer;
 }
 .element-wrap.selected {
   z-index: 10;
