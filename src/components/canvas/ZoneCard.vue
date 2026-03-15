@@ -308,12 +308,17 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 .notes-rendered :deep(h3) { font-size: 12px; }
 .notes-rendered :deep(h4) { font-size: 11px; }
 .notes-rendered :deep(p) { margin: 4px 0; }
-.notes-rendered :deep(ul),
+.notes-rendered :deep(ul) {
+  margin: 4px 0;
+  padding-left: 18px;
+  list-style: disc;
+}
 .notes-rendered :deep(ol) {
   margin: 4px 0;
   padding-left: 18px;
+  list-style: decimal;
 }
-.notes-rendered :deep(li) { margin: 2px 0; }
+.notes-rendered :deep(li) { margin: 2px 0; display: list-item; }
 .notes-rendered :deep(li ul),
 .notes-rendered :deep(li ol) { margin: 0; }
 .notes-rendered :deep(strong) { color: var(--text); font-weight: 600; }
