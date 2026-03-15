@@ -280,6 +280,9 @@ export const useBoardStore = defineStore('board', () => {
     let md = `# ${name.value}\n\n`
     for (const zone of zones.value) {
       md += `## ${zone.name}\n\n`
+      if (zone.description?.trim()) {
+        md += `${zone.description.trim()}\n\n`
+      }
       for (const el of zone.elements) {
         if (el.type === 'image') {
           const src = el.data?.src || ''
