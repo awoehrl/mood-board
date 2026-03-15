@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
-import { compressImage, uploadImage } from '../../utils/clipboard.js'
+import { compressImage, uploadImage, isUrl, isImageUrl, loadImageAsBase64 } from '../../utils/clipboard.js'
 import { useToast } from '../../composables/useToast.js'
 
 const emit = defineEmits(['show-color-picker', 'show-link-input', 'show-delete-confirm'])
@@ -39,6 +39,60 @@ function addText() {
   if (!store.selectedZoneId) return
   store.pushUndo()
   store.addElement(store.selectedZoneId, { type: 'text', width: 200, height: 80, data: { content: '' } })
+}
+
+async function pasteFromClipboard() {
+  if (!store.selectedZoneId) return
+  try {
+    const items = await navigator.clipboard.read()
+    for (const item of items) {
+      // Image blob
+      const imageType = item.types.find(t => t.startsWith('image/'))
+      if (imageType) {
+        const blob = await item.getType(imageType)
+        const dataUrl = await blobToDataUrl(blob)
+        const compressed = await compressImage(dataUrl)
+        let src = compressed
+        try { src = await uploadImage(compressed) } catch { toast.show('Upload failed — saved locally', 'warning') }
+        store.pushUndo()
+        store.addElement(store.selectedZoneId, {
+          type: 'image', width: 200, height: 150,
+          data: { src, sourceUrl: null, alt: 'Pasted image' },
+        })
+        return
+      }
+      // Text (URL or plain text)
+      if (item.types.includes('text/plain')) {
+        const blob = await item.getType('text/plain')
+        const text = (await blob.text()).trim()
+        if (!text) continue
+        store.pushUndo()
+        if (isImageUrl(text)) {
+          const base64 = await loadImageAsBase64(text)
+          let src = base64 || text
+          if (base64) { try { src = await uploadImage(base64) } catch {} }
+          store.addElement(store.selectedZoneId, { type: 'image', width: 220, height: 160, data: { src, sourceUrl: text, alt: 'Image from URL' } })
+        } else if (isUrl(text)) {
+          store.addElement(store.selectedZoneId, { type: 'link', width: 240, height: 56, data: { url: text, label: '' } })
+        } else {
+          store.addElement(store.selectedZoneId, { type: 'text', width: 200, height: 80, data: { content: text } })
+        }
+        return
+      }
+    }
+    toast.show('Nothing to paste', 'warning')
+  } catch {
+    toast.show('Clipboard access denied', 'warning')
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve(e.target.result)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
 }
 
 function deleteSelected() {
@@ -89,6 +143,10 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-1 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-5.5-4.5-9.99-10-9.99z"/><circle cx="7.5" cy="11.5" r="1.5" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.5" fill="currentColor"/><circle cx="16.5" cy="11.5" r="1.5" fill="currentColor"/><circle cx="13.5" cy="7.5" r="1.5" fill="currentColor"/></svg>
         <span class="el-label">Color</span>
       </button>
+      <button class="el-btn" title="Paste from clipboard" @click="pasteFromClipboard">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+        <span class="el-label">Paste</span>
+      </button>
       <span class="el-sep" />
       <button class="el-btn el-btn--danger" title="Delete selected" @click="deleteSelected">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
@@ -106,6 +164,7 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
           <button class="el-mobile-item" @click="emit('show-link-input'); showMobileMenu = false">Link</button>
           <button class="el-mobile-item" @click="addText(); showMobileMenu = false">Text</button>
           <button class="el-mobile-item" @click="emit('show-color-picker'); showMobileMenu = false">Color</button>
+          <button class="el-mobile-item" @click="pasteFromClipboard(); showMobileMenu = false">Paste</button>
         </div>
       </Transition>
     </div>
