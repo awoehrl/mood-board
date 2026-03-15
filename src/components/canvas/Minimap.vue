@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { computed } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
 
 const props = defineProps({
@@ -13,8 +13,8 @@ const emit = defineEmits(['navigate'])
 
 const store = useBoardStore()
 const MAP_W = 140
-const MAP_H = 100
-const PAD = 20
+const MAP_H = 90
+const PAD = 30
 
 const bounds = computed(() => {
   const zones = store.zones
@@ -26,7 +26,7 @@ const bounds = computed(() => {
     maxX = Math.max(maxX, z.x + z.width)
     maxY = Math.max(maxY, z.y + z.height)
   }
-  // Also include viewport bounds so the viewport rect is always visible
+  // Include viewport so the view rect is always visible
   const vpLeft = -props.panX / props.zoom
   const vpTop = -props.panY / props.zoom
   const vpRight = vpLeft + props.viewportWidth / props.zoom
@@ -83,23 +83,25 @@ const viewRect = computed(() => {
   }
 })
 
-const svgSize = computed(() => {
+// viewBox is dynamic (content scales to fit), but SVG element is fixed size
+const viewBox = computed(() => {
   const b = bounds.value
   const s = scale.value
-  return {
-    w: (b.maxX - b.minX) * s,
-    h: (b.maxY - b.minY) * s,
-  }
+  const contentW = (b.maxX - b.minX) * s
+  const contentH = (b.maxY - b.minY) * s
+  return `0 0 ${contentW} ${contentH}`
 })
 
 function onClick(e) {
   const svg = e.currentTarget
   const rect = svg.getBoundingClientRect()
-  const mx = e.clientX - rect.left
-  const my = e.clientY - rect.top
   const b = bounds.value
   const s = scale.value
-  // Convert minimap coords to world coords (center viewport there)
+  const contentW = (b.maxX - b.minX) * s
+  const contentH = (b.maxY - b.minY) * s
+  // Map click position to viewBox coordinates
+  const mx = (e.clientX - rect.left) / rect.width * contentW
+  const my = (e.clientY - rect.top) / rect.height * contentH
   const worldX = mx / s + b.minX
   const worldY = my / s + b.minY
   emit('navigate', worldX, worldY)
@@ -109,9 +111,10 @@ function onClick(e) {
 <template>
   <div class="minimap">
     <svg
-      :width="svgSize.w"
-      :height="svgSize.h"
-      :viewBox="`0 0 ${svgSize.w} ${svgSize.h}`"
+      :width="MAP_W"
+      :height="MAP_H"
+      :viewBox="viewBox"
+      preserveAspectRatio="xMidYMid meet"
       @click="onClick"
     >
       <!-- Zone rectangles -->
@@ -148,9 +151,6 @@ function onClick(e) {
   padding: 6px;
   box-shadow: var(--shadow-md);
   cursor: crosshair;
-  max-width: 160px;
-  max-height: 120px;
-  overflow: hidden;
 }
 @media (max-width: 480px) {
   .minimap { display: none; }
