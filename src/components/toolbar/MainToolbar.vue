@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
-import { arrangeByColor } from '../../utils/colorSort.js'
+import { arrangeAllZones } from '../../utils/colorSort.js'
 import UserAvatars from '../UserAvatars.vue'
 
 defineProps({
@@ -45,6 +45,19 @@ function saveNewZone() {
   showNewZone.value = false
 }
 
+const renamingZoneId = ref(null)
+const renameZoneName = ref('')
+function startRenameZone(zone) {
+  renamingZoneId.value = zone.id
+  renameZoneName.value = zone.name
+}
+function saveRenameZone() {
+  if (renameZoneName.value.trim() && renamingZoneId.value) {
+    store.updateZone(renamingZoneId.value, { name: renameZoneName.value.trim() })
+  }
+  renamingZoneId.value = null
+}
+
 function startEditName() { editName.value = store.name; isEditingName.value = true }
 function saveName() {
   if (editName.value.trim()) store.name = editName.value.trim()
@@ -52,11 +65,10 @@ function saveName() {
 }
 const arranging = ref(false)
 async function autoArrange() {
-  const zone = store.zones.find(z => z.id === store.selectedZoneId)
-  if (!zone || !zone.elements.length) return
+  if (!store.zones.length) return
   store.pushUndo()
   arranging.value = true
-  try { await arrangeByColor(zone) } finally { arranging.value = false }
+  try { await arrangeAllZones(store.zones) } finally { arranging.value = false }
 }
 function triggerImport() { fileInput.value?.click() }
 function onFileSelected(e) {
@@ -85,16 +97,29 @@ function onFileSelected(e) {
     </div>
 
     <div class="zone-bar">
-      <button
-        v-for="zone in store.zones"
-        :key="zone.id"
-        class="zone-chip"
-        :class="{ active: store.selectedZoneId === zone.id }"
-        @click="emit('pan-to-zone', zone)"
-      >
-        <span class="chip-dot" :style="{ background: zone.color }" />
-        <span class="chip-label">{{ zone.name }}</span>
-      </button>
+      <template v-for="zone in store.zones" :key="zone.id">
+        <div v-if="renamingZoneId === zone.id" class="zone-chip active">
+          <span class="chip-dot" :style="{ background: zone.color }" />
+          <input
+            v-model="renameZoneName"
+            class="zone-rename-input"
+            @blur="saveRenameZone"
+            @keydown.enter="saveRenameZone"
+            @keydown.escape="renamingZoneId = null"
+            autofocus
+          />
+        </div>
+        <button
+          v-else
+          class="zone-chip"
+          :class="{ active: store.selectedZoneId === zone.id }"
+          @click="emit('pan-to-zone', zone)"
+          @dblclick.stop="startRenameZone(zone)"
+        >
+          <span class="chip-dot" :style="{ background: zone.color }" />
+          <span class="chip-label">{{ zone.name }}</span>
+        </button>
+      </template>
 
       <input
         v-if="showNewZone"
@@ -141,7 +166,7 @@ function onFileSelected(e) {
         <Transition name="dropdown">
           <div v-if="showMenu" class="dropdown">
             <button class="dropdown-item" @click="emit('fit-all'); showMenu = false">Fit to screen</button>
-            <button v-if="store.selectedZoneId" class="dropdown-item" :disabled="arranging" @click="autoArrange(); showMenu = false">{{ arranging ? 'Sorting...' : 'Auto-arrange' }}</button>
+            <button class="dropdown-item" :disabled="arranging || !store.zones.length" @click="autoArrange(); showMenu = false">{{ arranging ? 'Sorting...' : 'Auto-arrange all' }}</button>
             <div class="dropdown-sep" />
             <a class="dropdown-item" href="https://www.icloud.com/shortcuts/4bd8d647a043454d9bc9833508fb9a85" target="_blank" @click="showMenu = false">Install iOS Shortcut</a>
             <div class="dropdown-sep" />
@@ -226,6 +251,17 @@ function onFileSelected(e) {
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.zone-rename-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  width: 80px;
+  padding: 0;
 }
 
 .new-zone-input {

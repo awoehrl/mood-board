@@ -77,8 +77,15 @@ export async function getElementColor(el) {
   return { r: 180, g: 180, b: 180 }
 }
 
-// Sort elements by color and arrange in grid
-export async function arrangeByColor(zone) {
+const ZONE_PAD = 12
+const ZONE_MAX_WIDTH = 700
+const ZONE_HEADER = 36
+const CELL_W = 200
+const CELL_H = 150
+const ZONE_GAP = 40
+
+// Sort elements by color within a single zone and re-layout on grid
+async function sortAndLayoutZone(zone) {
   const elements = zone.elements
   if (elements.length === 0) return
 
@@ -100,41 +107,47 @@ export async function arrangeByColor(zone) {
     const aHsl = colorMap.get(a.id)
     const bHsl = colorMap.get(b.id)
 
-    // Sort by hue, then by lightness
     if (Math.abs(aHsl.h - bHsl.h) > 10) return aHsl.h - bHsl.h
     return aHsl.l - bHsl.l
   })
 
-  // Arrange in grid layout
-  const padding = 16
-  const gap = 12
-  const startY = 44 // below zone header
-  const zoneInnerWidth = zone.width - padding * 2
+  // Grid layout
+  const cols = Math.max(1, Math.floor((ZONE_MAX_WIDTH - ZONE_PAD) / (CELL_W + ZONE_PAD)))
+  zone.width = ZONE_PAD + cols * (CELL_W + ZONE_PAD)
 
-  let x = padding
-  let y = startY
-  let rowHeight = 0
-
-  for (const el of sorted) {
-    // Wrap to next row if needed
-    if (x + el.width > zone.width - padding && x > padding) {
-      x = padding
-      y += rowHeight + gap
-      rowHeight = 0
-    }
-
-    el.x = x
-    el.y = y
-    rowHeight = Math.max(rowHeight, el.height)
-    x += el.width + gap
+  for (let i = 0; i < sorted.length; i++) {
+    const el = sorted[i]
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    el.width = CELL_W
+    el.height = CELL_H
+    el.x = ZONE_PAD + col * (CELL_W + ZONE_PAD)
+    el.y = ZONE_PAD + row * (CELL_H + ZONE_PAD)
   }
 
-  // Expand zone height if needed
-  const totalHeight = y + rowHeight + padding
-  if (totalHeight > zone.height) {
-    zone.height = totalHeight
-  }
-
-  // Replace elements with sorted order
+  const totalRows = Math.ceil(sorted.length / cols)
+  zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (CELL_H + ZONE_PAD)
   zone.elements = sorted
+}
+
+// Arrange a single zone's elements by color
+export async function arrangeByColor(zone) {
+  await sortAndLayoutZone(zone)
+}
+
+// Arrange ALL zones: sort elements in each, then stack zones vertically
+export async function arrangeAllZones(zones) {
+  if (!zones.length) return
+
+  // Sort and layout elements within each zone
+  await Promise.all(zones.map(zone => sortAndLayoutZone(zone)))
+
+  // Stack zones vertically with gap
+  const startX = 100
+  let y = 100
+  for (const zone of zones) {
+    zone.x = startX
+    zone.y = y
+    y += zone.height + ZONE_GAP
+  }
 }
