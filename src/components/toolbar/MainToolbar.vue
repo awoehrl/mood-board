@@ -158,7 +158,7 @@ function onFileSelected(e) {
           @dblclick.stop="startRenameZone(zone)"
         >
           <span class="chip-dot" :style="{ background: zone.color }" />
-          <span class="chip-label">{{ zone.name }}{{ zone.area ? ' · ' + zone.area + ' m²' : '' }}</span>
+          <span class="chip-label">{{ zone.name }}</span>
         </button>
       </template>
 
@@ -267,9 +267,13 @@ function onFileSelected(e) {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 1;
+  flex: 1;
   min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.zone-bar::-webkit-scrollbar { display: none; }
 
 .zone-chip {
   height: 28px;
