@@ -147,6 +147,8 @@ export async function arrangeAllZones(zones) {
     const col = colHeights[0] <= colHeights[1] ? 0 : 1
     zone.x = startX + col * (ZONE_MAX_WIDTH + ZONE_GAP)
     zone.y = colHeights[col]
-    colHeights[col] += zone.height + ZONE_GAP
+    // Estimate extra height for notes card (rendered via minHeight, not in zone.height)
+    const notesExtra = zone.description?.trim() ? 80 : 0
+    colHeights[col] += zone.height + notesExtra + ZONE_GAP
   }
 }
