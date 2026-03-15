@@ -4,12 +4,15 @@ import { useBoardStore } from '../../stores/board.js'
 import { useCanvas } from '../../composables/useCanvas.js'
 import { useDragDrop } from '../../composables/useDragDrop.js'
 import CanvasLayer from './CanvasLayer.vue'
+import Minimap from './Minimap.vue'
 
 const store = useBoardStore()
 const canvas = useCanvas()
 const viewport = ref(null)
 const isPanning = ref(false)
 const spaceHeld = ref(false)
+const vpWidth = ref(0)
+const vpHeight = ref(0)
 let panStart = null
 
 // Touch handling for mobile
@@ -152,6 +155,13 @@ function onTouchEnd() {
 function onDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }
 function onKeyDown(e) { if (e.code === 'Space' && !e.repeat) spaceHeld.value = true }
 function onKeyUp(e) { if (e.code === 'Space') spaceHeld.value = false }
+
+function onMinimapNavigate(worldX, worldY) {
+  canvas.panX.value = vpWidth.value / 2 - worldX * canvas.zoom.value
+  canvas.panY.value = vpHeight.value / 2 - worldY * canvas.zoom.value
+}
+
+let resizeObserver = null
 function onPasteEvent(e) {
   if (!viewport.value) return
   handlePaste(e, viewport.value.getBoundingClientRect())
@@ -165,6 +175,15 @@ onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
   document.addEventListener('paste', onPasteEvent)
+  if (viewport.value) {
+    vpWidth.value = viewport.value.clientWidth
+    vpHeight.value = viewport.value.clientHeight
+    resizeObserver = new ResizeObserver(([entry]) => {
+      vpWidth.value = entry.contentRect.width
+      vpHeight.value = entry.contentRect.height
+    })
+    resizeObserver.observe(viewport.value)
+  }
 })
 onUnmounted(() => {
   viewport.value?.removeEventListener('wheel', onWheel)
@@ -174,6 +193,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
   document.removeEventListener('paste', onPasteEvent)
+  resizeObserver?.disconnect()
 })
 
 defineExpose({ canvas })
@@ -199,6 +219,14 @@ defineExpose({ canvas })
       }"
     />
     <CanvasLayer :transform="canvas.transform.value" />
+    <Minimap
+      :pan-x="canvas.panX.value"
+      :pan-y="canvas.panY.value"
+      :zoom="canvas.zoom.value"
+      :viewport-width="vpWidth"
+      :viewport-height="vpHeight"
+      @navigate="onMinimapNavigate"
+    />
   </div>
 </template>
 
