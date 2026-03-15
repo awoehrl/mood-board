@@ -13,6 +13,7 @@ defineProps({
 })
 const emit = defineEmits(['zoom-in', 'zoom-out', 'fit-all', 'pan-to-zone', 'export', 'export-markdown', 'import', 'copy-link'])
 
+const commitHash = typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : 'dev'
 const store = useBoardStore()
 const isEditingName = ref(false)
 const editName = ref('')
@@ -173,6 +174,8 @@ function onFileSelected(e) {
             <button class="dropdown-item" @click="emit('export-markdown'); showMenu = false">Export Markdown</button>
             <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
             <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
+            <div class="dropdown-sep" />
+            <div class="dropdown-version">{{ commitHash }}</div>
           </div>
         </Transition>
       </div>
@@ -356,6 +359,13 @@ function onFileSelected(e) {
 .dropdown-item:hover { background: var(--hover); }
 .dropdown-sep { height: 1px; background: var(--border); margin: 4px 0; }
 a.dropdown-item { text-decoration: none; }
+.dropdown-version {
+  padding: 4px 10px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: monospace;
+  text-align: center;
+}
 
 .dropdown-enter-active, .dropdown-leave-active { transition: all 0.15s ease; }
 .dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px); }
