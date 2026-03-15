@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onUnmounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
 import { arrangeAllZones } from '../../utils/colorSort.js'
 import UserAvatars from '../UserAvatars.vue'
@@ -69,7 +69,47 @@ async function autoArrange() {
   if (!store.zones.length) return
   store.pushUndo()
   arranging.value = true
-  try { await arrangeAllZones(store.zones) } finally { arranging.value = false }
+  try {
+    await arrangeAllZones(store.zones)
+    // After Vue renders, measure actual DOM heights and fix positions
+    await nextTick()
+    await nextTick() // double nextTick to ensure DOM is fully updated
+    fixZonePositionsFromDOM()
+  } finally { arranging.value = false }
+}
+
+function fixZonePositionsFromDOM() {
+  const zoneEls = document.querySelectorAll('[data-zone]')
+  if (!zoneEls.length) return
+  // Build a map of zone id -> actual rendered height
+  const heightMap = new Map()
+  for (const el of zoneEls) {
+    // Find which zone this element belongs to by matching position
+    const rect = el.getBoundingClientRect()
+    // We need to account for canvas scale
+    const layer = document.querySelector('[data-canvas-layer]')
+    const scale = layer ? (new DOMMatrix(getComputedStyle(layer).transform).a || 1) : 1
+    const actualHeight = rect.height / scale
+    // Match zone by x/y position
+    const style = el.style
+    const x = parseFloat(style.left)
+    const y = parseFloat(style.top)
+    const zone = store.zones.find(z => Math.abs(z.x - x) < 1 && Math.abs(z.y - y) < 1)
+    if (zone) heightMap.set(zone.id, actualHeight)
+  }
+  // Re-position zones in 2 columns using actual heights
+  const ZONE_GAP = 60
+  const ZONE_MAX_WIDTH = 700
+  const startX = 100
+  const startY = 100
+  const colHeights = [startY, startY]
+  for (const zone of store.zones) {
+    const col = colHeights[0] <= colHeights[1] ? 0 : 1
+    zone.x = startX + col * (ZONE_MAX_WIDTH + ZONE_GAP)
+    zone.y = colHeights[col]
+    const h = heightMap.get(zone.id) || zone.height
+    colHeights[col] += h + ZONE_GAP
+  }
 }
 function triggerImport() { fileInput.value?.click() }
 function onFileSelected(e) {
