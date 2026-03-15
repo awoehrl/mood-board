@@ -17,7 +17,7 @@ const borderColors = {
       :key="t.id"
       class="toast-item"
       :style="{ borderLeftColor: borderColors[t.type] || borderColors.info }"
-      @click="dismiss(t.id)"
+      @click="t.onClick ? (t.onClick(), dismiss(t.id)) : dismiss(t.id)"
     >
       {{ t.message }}
     </div>

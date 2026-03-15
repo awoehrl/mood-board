@@ -4,9 +4,9 @@ const toasts = ref([])
 let nextId = 0
 
 export function useToast() {
-  function show(message, type = 'info', duration = 3000) {
+  function show(message, type = 'info', duration = 3000, onClick = null) {
     const id = ++nextId
-    toasts.value.push({ id, message, type })
+    toasts.value.push({ id, message, type, onClick })
     if (duration > 0) {
       setTimeout(() => dismiss(id), duration)
     }

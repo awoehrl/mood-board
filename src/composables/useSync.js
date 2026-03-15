@@ -207,9 +207,41 @@ export function useSync() {
   onMounted(() => {
     loadLocal()
     connect()
-    // Register service worker for PWA + share target
+    // Register service worker for PWA + share target + update detection
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {})
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        // Check for updates periodically
+        setInterval(() => reg.update(), 60 * 1000)
+
+        const onNewSW = (sw) => {
+          toast.show('Update available — tap to refresh', 'info', 0, () => {
+            sw.postMessage('SKIP_WAITING')
+          })
+        }
+
+        // New SW already waiting (e.g. page was open during deploy)
+        if (reg.waiting) onNewSW(reg.waiting)
+
+        // New SW installed while page is open
+        reg.addEventListener('updatefound', () => {
+          const newSW = reg.installing
+          if (!newSW) return
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              onNewSW(newSW)
+            }
+          })
+        })
+
+        // When the new SW takes over, reload the page
+        let refreshing = false
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true
+            window.location.reload()
+          }
+        })
+      }).catch(() => {})
     }
   })
 
