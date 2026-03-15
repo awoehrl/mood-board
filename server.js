@@ -200,6 +200,24 @@ function autoResizeZone(zone) {
   zone.height = Math.max(zone.height, neededH)
 }
 
+function relayoutZone(zone) {
+  if (!zone.elements.length) return
+  const cellW = 200, cellH = 150
+  const cols = Math.max(1, Math.floor((ZONE_MAX_WIDTH - ZONE_PAD) / (cellW + ZONE_PAD)))
+  zone.width = ZONE_PAD + cols * (cellW + ZONE_PAD)
+  for (let i = 0; i < zone.elements.length; i++) {
+    const el = zone.elements[i]
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    el.width = cellW
+    el.height = cellH
+    el.x = ZONE_PAD + col * (cellW + ZONE_PAD)
+    el.y = ZONE_PAD + row * (cellH + ZONE_PAD)
+  }
+  const totalRows = Math.ceil(zone.elements.length / cols)
+  zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (cellH + ZONE_PAD)
+}
+
 // API: Add a single element to a board zone
 // Accepts: { url, text, title, image (base64), zoneName/zoneId }
 app.post('/api/board/:id/add', async (req, res) => {

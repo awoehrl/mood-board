@@ -116,25 +116,44 @@ export const useBoardStore = defineStore('board', () => {
     }
   }
 
+  // Re-layout all elements in a zone on a clean grid, then resize zone to fit
+  function relayoutZone(zone) {
+    if (!zone.elements.length) return
+    // Use a uniform cell size based on the most common element type (images: 200x150)
+    const cellW = 200, cellH = 150
+    const cols = Math.max(1, Math.floor((ZONE_MAX_WIDTH - ZONE_PAD) / (cellW + ZONE_PAD)))
+    // Set zone width to fit the columns exactly
+    zone.width = ZONE_PAD + cols * (cellW + ZONE_PAD)
+
+    for (let i = 0; i < zone.elements.length; i++) {
+      const el = zone.elements[i]
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      el.width = cellW
+      el.height = cellH
+      el.x = ZONE_PAD + col * (cellW + ZONE_PAD)
+      el.y = ZONE_PAD + row * (cellH + ZONE_PAD)
+    }
+
+    const totalRows = Math.ceil(zone.elements.length / cols)
+    zone.height = ZONE_HEADER + ZONE_PAD + totalRows * (cellH + ZONE_PAD)
+  }
+
   function autoResizeZone(zone) {
     if (!zone.elements.length) return
-    // Find bounding box of all elements
     let maxRight = 0, maxBottom = 0
     for (const el of zone.elements) {
       maxRight = Math.max(maxRight, el.x + el.width)
       maxBottom = Math.max(maxBottom, el.y + el.height)
     }
-    // Add padding after last element
     const neededW = maxRight + ZONE_PAD
     const neededH = ZONE_HEADER + maxBottom + ZONE_PAD
-    // Grow zone if content exceeds it, clamp width to max
     zone.width = Math.min(ZONE_MAX_WIDTH, Math.max(zone.width, neededW))
     zone.height = Math.max(zone.height, neededH)
   }
 
   function findNextSlot(zone, w, h) {
     const pad = ZONE_PAD
-    // Try placing within current width first
     const maxW = Math.min(zone.width, ZONE_MAX_WIDTH)
     const cols = Math.max(1, Math.floor((maxW - pad) / (w + pad)))
     for (let row = 0; row < 200; row++) {
@@ -203,21 +222,14 @@ export const useBoardStore = defineStore('board', () => {
   }
 
   function shrinkZoneToFit(zone) {
+    // Re-layout fills gaps left by deleted elements and resizes
+    relayoutZone(zone)
     if (!zone.elements.length) {
-      // Reset to default size when empty
       const defaultW = ZONE_PAD + 2 * (200 + ZONE_PAD)
       const defaultH = ZONE_HEADER + ZONE_PAD + 150 + ZONE_PAD
       zone.width = defaultW
       zone.height = defaultH
-      return
     }
-    let maxRight = 0, maxBottom = 0
-    for (const el of zone.elements) {
-      maxRight = Math.max(maxRight, el.x + el.width)
-      maxBottom = Math.max(maxBottom, el.y + el.height)
-    }
-    zone.width = Math.max(ZONE_PAD + 2 * (200 + ZONE_PAD), maxRight + ZONE_PAD)
-    zone.height = Math.max(ZONE_HEADER + ZONE_PAD + 150 + ZONE_PAD, ZONE_HEADER + maxBottom + ZONE_PAD)
   }
 
   function selectZone(id) {
@@ -248,6 +260,10 @@ export const useBoardStore = defineStore('board', () => {
   function loadBoard(data) {
     name.value = data.name || 'My House Renovation'
     zones.value = data.zones || []
+    // Re-layout all zones to clean grid positions
+    for (const zone of zones.value) {
+      relayoutZone(zone)
+    }
     selectedZoneId.value = null
     selectedElementIds.value = new Set()
     colorIndex = zones.value.length
