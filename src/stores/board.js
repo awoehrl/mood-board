@@ -110,15 +110,37 @@ export const useBoardStore = defineStore('board', () => {
     }
   }
 
+  function findNextSlot(zone, w, h) {
+    const pad = 12
+    const cols = Math.max(1, Math.floor((zone.width - pad) / (w + pad)))
+    for (let row = 0; row < 100; row++) {
+      for (let col = 0; col < cols; col++) {
+        const x = pad + col * (w + pad)
+        const y = pad + row * (h + pad)
+        const overlaps = zone.elements.some(el =>
+          x < el.x + el.width && x + w > el.x &&
+          y < el.y + el.height && y + h > el.y
+        )
+        if (!overlaps) return { x, y }
+      }
+    }
+    return { x: pad, y: pad + zone.elements.length * (h + pad) }
+  }
+
   function addElement(zoneId, element) {
     const zone = zones.value.find((z) => z.id === zoneId)
     if (!zone) return null
+    const w = element.width ?? 150
+    const h = element.height ?? 100
+    const pos = (element.x != null && element.y != null)
+      ? { x: element.x, y: element.y }
+      : findNextSlot(zone, w, h)
     const el = {
       id: newId(),
-      x: element.x ?? 20,
-      y: element.y ?? 40 + zone.elements.length * 30,
-      width: element.width ?? 150,
-      height: element.height ?? 100,
+      x: pos.x,
+      y: pos.y,
+      width: w,
+      height: h,
       type: element.type,
       note: element.note ?? null,
       data: element.data ?? {},
