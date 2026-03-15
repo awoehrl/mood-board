@@ -12,27 +12,37 @@ function addImage() {
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = 'image/*'
+  input.multiple = true
   input.onchange = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file || !store.selectedZoneId) return
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const compressed = await compressImage(ev.target.result)
+    const files = Array.from(e.target.files || [])
+    if (!files.length || !store.selectedZoneId) return
+    store.pushUndo()
+    for (const file of files) {
+      const dataUrl = await readFileAsDataUrl(file)
+      const compressed = await compressImage(dataUrl)
       let src = compressed
       try {
         src = await uploadImage(compressed)
       } catch {
         toast.show('Image upload failed — saved locally', 'warning')
       }
-      store.pushUndo()
       store.addElement(store.selectedZoneId, {
         type: 'image', width: 200, height: 150,
         data: { src, sourceUrl: null, alt: file.name },
       })
     }
-    reader.readAsDataURL(file)
+    if (files.length > 1) toast.show(`Added ${files.length} images`, 'success')
   }
   input.click()
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve(e.target.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
 
 function addText() {
