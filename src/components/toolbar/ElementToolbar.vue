@@ -2,13 +2,11 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
 import { compressImage, uploadImage } from '../../utils/clipboard.js'
-import { arrangeByColor } from '../../utils/colorSort.js'
 import { useToast } from '../../composables/useToast.js'
 
 const emit = defineEmits(['show-color-picker', 'show-link-input', 'show-delete-confirm'])
 const store = useBoardStore()
 const toast = useToast()
-const arranging = ref(false)
 
 function addImage() {
   const input = document.createElement('input')
@@ -41,18 +39,6 @@ function addText() {
   if (!store.selectedZoneId) return
   store.pushUndo()
   store.addElement(store.selectedZoneId, { type: 'text', width: 200, height: 80, data: { content: '' } })
-}
-
-async function autoArrange() {
-  const zone = store.zones.find(z => z.id === store.selectedZoneId)
-  if (!zone || !zone.elements.length) return
-  store.pushUndo()
-  arranging.value = true
-  try {
-    await arrangeByColor(zone)
-  } finally {
-    arranging.value = false
-  }
 }
 
 function deleteSelected() {
@@ -104,11 +90,6 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
         <span class="el-label">Color</span>
       </button>
       <span class="el-sep" />
-      <button class="el-btn" title="Auto-arrange" @click="autoArrange" :disabled="arranging">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
-        <span class="el-label">{{ arranging ? 'Sorting...' : 'Arrange' }}</span>
-      </button>
-      <span class="el-sep" />
       <button class="el-btn el-btn--danger" title="Delete selected" @click="deleteSelected">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
       </button>
@@ -129,14 +110,10 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
       </Transition>
     </div>
 
-    <!-- Mobile: contextual action bar (bottom-center) -->
-    <div v-if="store.selectedElementIds.size > 0 || store.selectedZoneId" class="el-mobile-actions">
-      <button class="el-action-btn" @click="autoArrange" :disabled="arranging">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
-        <span>{{ arranging ? 'Sorting...' : 'Arrange' }}</span>
-      </button>
-      <span v-if="store.selectedElementIds.size > 0" class="el-action-count">{{ store.selectedElementIds.size }} selected</span>
-      <button v-if="store.selectedElementIds.size > 0" class="el-action-btn el-action-btn--danger" @click="deleteSelected">
+    <!-- Mobile: selection action bar (only when elements are selected) -->
+    <div v-if="store.selectedElementIds.size > 0" class="el-mobile-actions">
+      <span class="el-action-count">{{ store.selectedElementIds.size }} selected</span>
+      <button class="el-action-btn el-action-btn--danger" @click="deleteSelected">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
         <span>Delete</span>
       </button>
@@ -228,7 +205,6 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
   gap: 6px;
   transition: all 0.1s;
 }
-.el-action-btn:hover { background: var(--hover); color: var(--text); }
 .el-action-btn--danger { color: var(--red); }
 .el-action-btn--danger:hover { background: var(--red-soft); }
 .el-action-count {
@@ -237,6 +213,7 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
   padding: 0 8px;
   white-space: nowrap;
 }
+
 
 .popup-enter-active, .popup-leave-active { transition: all 0.15s ease; }
 .popup-enter-from, .popup-leave-to { opacity: 0; transform: translateY(4px); }

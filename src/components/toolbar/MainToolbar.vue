@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
+import { arrangeByColor } from '../../utils/colorSort.js'
 import UserAvatars from '../UserAvatars.vue'
 
 defineProps({
@@ -48,6 +49,14 @@ function startEditName() { editName.value = store.name; isEditingName.value = tr
 function saveName() {
   if (editName.value.trim()) store.name = editName.value.trim()
   isEditingName.value = false
+}
+const arranging = ref(false)
+async function autoArrange() {
+  const zone = store.zones.find(z => z.id === store.selectedZoneId)
+  if (!zone || !zone.elements.length) return
+  store.pushUndo()
+  arranging.value = true
+  try { await arrangeByColor(zone) } finally { arranging.value = false }
 }
 function triggerImport() { fileInput.value?.click() }
 function onFileSelected(e) {
@@ -132,6 +141,7 @@ function onFileSelected(e) {
         <Transition name="dropdown">
           <div v-if="showMenu" class="dropdown">
             <button class="dropdown-item" @click="emit('fit-all'); showMenu = false">Fit to screen</button>
+            <button v-if="store.selectedZoneId" class="dropdown-item" :disabled="arranging" @click="autoArrange(); showMenu = false">{{ arranging ? 'Sorting...' : 'Auto-arrange' }}</button>
             <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
             <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
           </div>
