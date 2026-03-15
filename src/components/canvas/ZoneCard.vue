@@ -124,26 +124,26 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
       <span class="zone-count">{{ zone.elements.length }}</span>
     </div>
 
+    <!-- Pinned notes card — between header and elements -->
+    <div class="zone-notes-card" @pointerdown.stop>
+      <textarea
+        v-if="isEditingNotes"
+        v-model="editNotesText"
+        class="notes-editor"
+        @blur="saveNotes"
+        @keydown.escape="isEditingNotes = false"
+        placeholder="Add notes (markdown supported)..."
+        autofocus
+      />
+      <div v-else-if="hasNotes" class="notes-rendered" @click="startEditNotes" v-html="renderedNotes" />
+      <div v-else class="notes-empty" @click="startEditNotes">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 3h8M3 6h8M3 9h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span>Add notes...</span>
+      </div>
+    </div>
+
     <!-- Elements container -->
     <div class="zone-body">
-      <!-- Pinned notes card — first item in the zone -->
-      <div class="zone-notes-card" @pointerdown.stop>
-        <textarea
-          v-if="isEditingNotes"
-          v-model="editNotesText"
-          class="notes-editor"
-          @blur="saveNotes"
-          @keydown.escape="isEditingNotes = false"
-          placeholder="Add notes (markdown supported)..."
-          autofocus
-        />
-        <div v-else-if="hasNotes" class="notes-rendered" @click="startEditNotes" v-html="renderedNotes" />
-        <div v-else class="notes-empty" @click="startEditNotes">
-          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 3h8M3 6h8M3 9h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-          <span>Add notes...</span>
-        </div>
-      </div>
-
       <!-- Grid elements -->
       <div
         v-for="el in zone.elements" :key="el.id"
@@ -171,6 +171,8 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 .zone {
   position: absolute;
   user-select: none;
+  display: flex;
+  flex-direction: column;
 }
 .zone-bg {
   position: absolute; inset: 0;
@@ -224,7 +226,8 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 .zone-body {
   position: relative;
   overflow: hidden;
-  height: calc(100% - 36px);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Pinned notes card */
@@ -355,7 +358,6 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 
 @media (pointer: coarse) {
   .zone-header { height: 44px; }
-  .zone-body { height: calc(100% - 44px); }
   .zone-resize { width: 32px; height: 32px; }
   .notes-empty { opacity: 1; }
 }
