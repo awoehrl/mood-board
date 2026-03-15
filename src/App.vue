@@ -80,6 +80,17 @@ function onConfirmDeleteZone() {
   showDeleteConfirm.value = false
 }
 
+function onExportMarkdown() {
+  const md = store.exportMarkdown()
+  const blob = new Blob([md], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${store.name}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function onCopyLink() {
   navigator.clipboard.writeText(window.location.href)
   toast.show('Link copied to clipboard', 'success')
@@ -148,6 +159,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
       @fit-all="onFitAll"
       @pan-to-zone="onPanToZone"
       @export="exportJson"
+      @export-markdown="onExportMarkdown"
       @import="onImport"
       @copy-link="onCopyLink"
     />

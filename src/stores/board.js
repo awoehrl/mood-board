@@ -276,6 +276,37 @@ export const useBoardStore = defineStore('board', () => {
     }
   }
 
+  function exportMarkdown() {
+    let md = `# ${name.value}\n\n`
+    for (const zone of zones.value) {
+      md += `## ${zone.name}\n\n`
+      for (const el of zone.elements) {
+        if (el.type === 'image') {
+          const src = el.data?.src || ''
+          const alt = el.data?.alt || ''
+          const url = el.data?.sourceUrl
+          if (url) {
+            md += `[![${alt}](${src})](${url})\n\n`
+          } else {
+            md += `![${alt}](${src})\n\n`
+          }
+          if (el.note) md += `> ${el.note}\n\n`
+        } else if (el.type === 'link') {
+          const url = el.data?.url || ''
+          const label = el.data?.label || url
+          md += `- [${label}](${url})\n`
+          if (el.note) md += `  > ${el.note}\n`
+        } else if (el.type === 'text') {
+          md += `${el.data?.content || ''}\n\n`
+        } else if (el.type === 'color-swatch') {
+          md += `- Color: \`${el.data?.hex || ''}\`\n`
+        }
+      }
+      md += '\n'
+    }
+    return md.trim() + '\n'
+  }
+
   return {
     name,
     zones,
@@ -297,6 +328,7 @@ export const useBoardStore = defineStore('board', () => {
     clearSelection,
     loadBoard,
     exportBoard,
+    exportMarkdown,
     pushUndo,
     undo,
     redo,

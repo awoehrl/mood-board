@@ -11,7 +11,7 @@ defineProps({
   connected: Boolean,
   boardId: String,
 })
-const emit = defineEmits(['zoom-in', 'zoom-out', 'fit-all', 'pan-to-zone', 'export', 'import', 'copy-link'])
+const emit = defineEmits(['zoom-in', 'zoom-out', 'fit-all', 'pan-to-zone', 'export', 'export-markdown', 'import', 'copy-link'])
 
 const store = useBoardStore()
 const isEditingName = ref(false)
@@ -145,6 +145,7 @@ function onFileSelected(e) {
             <div class="dropdown-sep" />
             <a class="dropdown-item" href="https://www.icloud.com/shortcuts/4bd8d647a043454d9bc9833508fb9a85" target="_blank" @click="showMenu = false">Install iOS Shortcut</a>
             <div class="dropdown-sep" />
+            <button class="dropdown-item" @click="emit('export-markdown'); showMenu = false">Export Markdown</button>
             <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
             <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
           </div>
