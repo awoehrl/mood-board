@@ -165,14 +165,18 @@ app.post('/api/board/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
-// Grid-based positioning: find next open slot in a zone
+// Grid-based positioning
+const ZONE_PAD = 12
+const ZONE_MAX_WIDTH = 700
+const ZONE_HEADER = 36
+
 function findNextSlot(zone, w, h) {
-  const pad = 12
-  const cols = Math.max(1, Math.floor((zone.width - pad) / (w + pad)))
-  for (let row = 0; row < 100; row++) {
+  const maxW = Math.min(zone.width, ZONE_MAX_WIDTH)
+  const cols = Math.max(1, Math.floor((maxW - ZONE_PAD) / (w + ZONE_PAD)))
+  for (let row = 0; row < 200; row++) {
     for (let col = 0; col < cols; col++) {
-      const x = pad + col * (w + pad)
-      const y = pad + row * (h + pad)
+      const x = ZONE_PAD + col * (w + ZONE_PAD)
+      const y = ZONE_PAD + row * (h + ZONE_PAD)
       const overlaps = zone.elements.some(el =>
         x < el.x + el.width && x + w > el.x &&
         y < el.y + el.height && y + h > el.y
@@ -180,7 +184,20 @@ function findNextSlot(zone, w, h) {
       if (!overlaps) return { x, y }
     }
   }
-  return { x: pad, y: pad + zone.elements.length * (h + pad) }
+  return { x: ZONE_PAD, y: ZONE_PAD + zone.elements.length * (h + ZONE_PAD) }
+}
+
+function autoResizeZone(zone) {
+  if (!zone.elements.length) return
+  let maxRight = 0, maxBottom = 0
+  for (const el of zone.elements) {
+    maxRight = Math.max(maxRight, el.x + el.width)
+    maxBottom = Math.max(maxBottom, el.y + el.height)
+  }
+  const neededW = maxRight + ZONE_PAD
+  const neededH = ZONE_HEADER + maxBottom + ZONE_PAD
+  zone.width = Math.min(ZONE_MAX_WIDTH, Math.max(zone.width, neededW))
+  zone.height = Math.max(zone.height, neededH)
 }
 
 // API: Add a single element to a board zone
@@ -265,6 +282,7 @@ app.post('/api/board/:id/add', async (req, res) => {
   }
 
   zone.elements.push(element)
+  autoResizeZone(zone)
   room.version = (room.version || 0) + 1
   broadcast(room, { type: 'sync', board: room.board, version: room.version })
   debouncedSave(boardId, { ...room.board, _version: room.version })
@@ -277,6 +295,47 @@ app.get('/api/board/:id/zones', async (req, res) => {
   const board = room?.board || await redisGet(`board:${req.params.id}`)
   if (!board?.zones) return res.status(404).json({ error: 'Board not found' })
   res.json(board.zones.map(z => ({ id: z.id, name: z.name })))
+})
+
+// API: Simple GET endpoint for iOS Shortcuts (no JSON body needed)
+app.get('/api/board/:id/add-simple', async (req, res) => {
+  const boardId = req.params.id
+  const { url, text, zone: zoneName } = req.query
+  if (!url && !text) return res.json({ error: 'Provide url or text param' })
+  // Reuse the POST logic by faking a request body
+  const room = await getRoom(boardId)
+  if (!room.board?.zones?.length) {
+    return res.json({ error: 'Board has no zones' })
+  }
+  const zone = zoneName
+    ? room.board.zones.find(z => z.name.toLowerCase() === zoneName.toLowerCase())
+    : room.board.zones[0]
+  if (!zone) return res.json({ error: 'Zone not found', available: room.board.zones.map(z => z.name) })
+
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
+  let element
+  const isImageUrl = url && /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i.test(url)
+
+  if (isImageUrl) {
+    const w = 200, h = 150
+    const pos = findNextSlot(zone, w, h)
+    element = { id, type: 'image', ...pos, width: w, height: h, note: text || null, data: { src: url, sourceUrl: url, alt: '' } }
+  } else if (url) {
+    const w = 240, h = 56
+    const pos = findNextSlot(zone, w, h)
+    element = { id, type: 'link', ...pos, width: w, height: h, note: text || null, data: { url, label: text || url } }
+  } else {
+    const w = 200, h = 80
+    const pos = findNextSlot(zone, w, h)
+    element = { id, type: 'text', ...pos, width: w, height: h, note: null, data: { content: text } }
+  }
+
+  zone.elements.push(element)
+  autoResizeZone(zone)
+  room.version = (room.version || 0) + 1
+  broadcast(room, { type: 'sync', board: room.board, version: room.version })
+  debouncedSave(boardId, { ...room.board, _version: room.version })
+  res.json({ ok: true, zone: zone.name, type: element.type })
 })
 
 // Share target page

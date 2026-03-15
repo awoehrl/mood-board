@@ -8,6 +8,9 @@ const DEFAULT_ZONE_COLORS = [
 ]
 
 const MAX_UNDO = 50
+const ZONE_PAD = 12
+const ZONE_MAX_WIDTH = 700
+const ZONE_HEADER = 36
 
 export const useBoardStore = defineStore('board', () => {
   const name = ref('My House Renovation')
@@ -81,14 +84,17 @@ export const useBoardStore = defineStore('board', () => {
   let colorIndex = 0
 
   function addZone(opts = {}) {
+    // Start small: 2 image columns wide, 1 row tall + empty space
+    const defaultW = ZONE_PAD + 2 * (200 + ZONE_PAD) // ~436px
+    const defaultH = ZONE_HEADER + ZONE_PAD + 150 + ZONE_PAD // ~210px
     const zone = {
       id: newId(),
       name: opts.name || 'New Room',
       color: opts.color || DEFAULT_ZONE_COLORS[colorIndex++ % DEFAULT_ZONE_COLORS.length],
       x: opts.x ?? 100 + zones.value.length * 50,
       y: opts.y ?? 100 + zones.value.length * 50,
-      width: opts.width ?? 500,
-      height: opts.height ?? 400,
+      width: opts.width ?? defaultW,
+      height: opts.height ?? defaultH,
       elements: [],
     }
     zones.value.push(zone)
@@ -110,10 +116,28 @@ export const useBoardStore = defineStore('board', () => {
     }
   }
 
+  function autoResizeZone(zone) {
+    if (!zone.elements.length) return
+    // Find bounding box of all elements
+    let maxRight = 0, maxBottom = 0
+    for (const el of zone.elements) {
+      maxRight = Math.max(maxRight, el.x + el.width)
+      maxBottom = Math.max(maxBottom, el.y + el.height)
+    }
+    // Add padding after last element
+    const neededW = maxRight + ZONE_PAD
+    const neededH = ZONE_HEADER + maxBottom + ZONE_PAD
+    // Grow zone if content exceeds it, clamp width to max
+    zone.width = Math.min(ZONE_MAX_WIDTH, Math.max(zone.width, neededW))
+    zone.height = Math.max(zone.height, neededH)
+  }
+
   function findNextSlot(zone, w, h) {
-    const pad = 12
-    const cols = Math.max(1, Math.floor((zone.width - pad) / (w + pad)))
-    for (let row = 0; row < 100; row++) {
+    const pad = ZONE_PAD
+    // Try placing within current width first
+    const maxW = Math.min(zone.width, ZONE_MAX_WIDTH)
+    const cols = Math.max(1, Math.floor((maxW - pad) / (w + pad)))
+    for (let row = 0; row < 200; row++) {
       for (let col = 0; col < cols; col++) {
         const x = pad + col * (w + pad)
         const y = pad + row * (h + pad)
@@ -146,6 +170,7 @@ export const useBoardStore = defineStore('board', () => {
       data: element.data ?? {},
     }
     zone.elements.push(el)
+    autoResizeZone(zone)
     selectedZoneId.value = zoneId
     selectedElementIds.value = new Set([el.id])
     return el
@@ -162,6 +187,7 @@ export const useBoardStore = defineStore('board', () => {
     const zone = zones.value.find((z) => z.id === zoneId)
     if (!zone) return
     zone.elements = zone.elements.filter((e) => e.id !== elementId)
+    shrinkZoneToFit(zone)
     selectedElementIds.value.delete(elementId)
     selectedElementIds.value = new Set(selectedElementIds.value)
   }
@@ -172,7 +198,26 @@ export const useBoardStore = defineStore('board', () => {
     if (!zone) return
     if (selectedElementIds.value.size === 0) return
     zone.elements = zone.elements.filter((e) => !selectedElementIds.value.has(e.id))
+    shrinkZoneToFit(zone)
     selectedElementIds.value = new Set()
+  }
+
+  function shrinkZoneToFit(zone) {
+    if (!zone.elements.length) {
+      // Reset to default size when empty
+      const defaultW = ZONE_PAD + 2 * (200 + ZONE_PAD)
+      const defaultH = ZONE_HEADER + ZONE_PAD + 150 + ZONE_PAD
+      zone.width = defaultW
+      zone.height = defaultH
+      return
+    }
+    let maxRight = 0, maxBottom = 0
+    for (const el of zone.elements) {
+      maxRight = Math.max(maxRight, el.x + el.width)
+      maxBottom = Math.max(maxBottom, el.y + el.height)
+    }
+    zone.width = Math.max(ZONE_PAD + 2 * (200 + ZONE_PAD), maxRight + ZONE_PAD)
+    zone.height = Math.max(ZONE_HEADER + ZONE_PAD + 150 + ZONE_PAD, ZONE_HEADER + maxBottom + ZONE_PAD)
   }
 
   function selectZone(id) {
