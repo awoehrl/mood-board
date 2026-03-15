@@ -92,6 +92,7 @@ export const useBoardStore = defineStore('board', () => {
       y: opts.y ?? 100 + zones.value.length * 50,
       width: opts.width ?? defaultW,
       height: opts.height ?? defaultH,
+      area: opts.area ?? null,
       elements: [],
     }
     zones.value.push(zone)
@@ -276,7 +277,7 @@ export const useBoardStore = defineStore('board', () => {
   function exportMarkdown() {
     let md = `# ${name.value}\n\n`
     for (const zone of zones.value) {
-      md += `## ${zone.name}\n\n`
+      md += `## ${zone.name}${zone.area ? ' (' + zone.area + ' m²)' : ''}\n\n`
       if (zone.description?.trim()) {
         md += `${zone.description.trim()}\n\n`
       }

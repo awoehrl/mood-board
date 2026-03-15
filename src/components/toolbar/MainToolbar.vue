@@ -158,7 +158,7 @@ function onFileSelected(e) {
           @dblclick.stop="startRenameZone(zone)"
         >
           <span class="chip-dot" :style="{ background: zone.color }" />
-          <span class="chip-label">{{ zone.name }}</span>
+          <span class="chip-label">{{ zone.name }}{{ zone.area ? ' · ' + zone.area + ' m²' : '' }}</span>
         </button>
       </template>
 

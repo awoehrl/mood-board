@@ -23,6 +23,8 @@ const isEditingName = ref(false)
 const editName = ref('')
 const isEditingNotes = ref(false)
 const editNotesText = ref('')
+const isEditingArea = ref(false)
+const editArea = ref('')
 let dragOffset = null
 let resizeStart = null
 let undoPushedForDrag = false
@@ -92,6 +94,17 @@ function saveName() {
   isEditingName.value = false
 }
 
+function startEditArea() {
+  editArea.value = props.zone.area ?? ''
+  isEditingArea.value = true
+}
+function saveArea() {
+  const val = editArea.value === '' ? null : parseFloat(editArea.value)
+  store.pushUndo()
+  store.updateZone(props.zone.id, { area: (val !== null && !isNaN(val)) ? val : null })
+  isEditingArea.value = false
+}
+
 function startEditNotes(e) {
   e.stopPropagation()
   editNotesText.value = props.zone.description || ''
@@ -132,7 +145,20 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         autofocus @pointerdown.stop
       />
       <span v-else class="zone-name" @dblclick.stop="startEditName">{{ zone.name }}</span>
-      <span class="zone-count">{{ zone.elements.length }}</span>
+      <input
+        v-if="isEditingArea"
+        v-model="editArea"
+        type="number"
+        step="0.1"
+        class="zone-area-input"
+        @blur="saveArea"
+        @keydown.enter="saveArea"
+        @keydown.escape="isEditingArea = false"
+        autofocus
+        @pointerdown.stop
+      />
+      <span v-else-if="zone.area" class="zone-area" @dblclick.stop="startEditArea">{{ zone.area }} m²</span>
+      <span v-else class="zone-area-empty" @dblclick.stop="startEditArea">m²</span>
     </div>
 
     <!-- Pinned notes card — between header and elements -->
@@ -228,10 +254,30 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
   padding: 0;
   letter-spacing: -0.01em;
 }
-.zone-count {
+.zone-area {
   font-size: 11px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  cursor: text;
+}
+.zone-area-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: text;
+  transition: opacity 0.15s;
+}
+.zone:hover .zone-area-empty { opacity: 0.5; }
+.zone-area-input {
+  width: 50px;
+  font-size: 11px;
+  color: var(--text);
+  outline: none;
+  padding: 0 2px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
 }
 
 .zone-body {
