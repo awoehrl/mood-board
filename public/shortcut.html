@@ -2,59 +2,56 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width">
-<title>Install Mood Board Shortcut</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Share to Mood Board</title>
 <style>
-  body { font-family: -apple-system, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; color: #37352f; }
-  h1 { font-size: 20px; }
-  .btn { display: block; width: 100%; padding: 14px; font-size: 17px; border-radius: 12px; border: none; color: white; background: #2eaadc; text-align: center; text-decoration: none; margin: 16px 0; }
-  .step { margin: 12px 0; padding: 12px; background: #f7f6f3; border-radius: 8px; font-size: 14px; }
-  .step b { display: block; margin-bottom: 4px; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; max-width: 500px; margin: 0 auto; color: #1a1a1a; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.02em; }
+  .subtitle { font-size: 14px; color: #737373; margin-bottom: 24px; }
+  .btn { display: block; width: 100%; padding: 14px; font-size: 16px; font-weight: 500; border-radius: 10px; border: none; color: white; background: #0066ff; text-align: center; text-decoration: none; margin-bottom: 12px; }
+  .btn-ghost { display: block; width: 100%; padding: 14px; font-size: 16px; font-weight: 500; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1); color: #1a1a1a; text-align: center; text-decoration: none; background: none; }
+  .card { background: #f5f5f4; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .card p { font-size: 13px; color: #737373; line-height: 1.5; }
+  .steps { list-style: none; padding: 0; counter-reset: step; }
+  .steps li { counter-increment: step; font-size: 14px; line-height: 1.6; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; gap: 10px; }
+  .steps li::before { content: counter(step); min-width: 24px; height: 24px; background: #0066ff; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .steps li:last-child { border-bottom: none; }
+  .tag { display: inline-block; background: rgba(0,102,255,0.08); color: #0066ff; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 4px; }
 </style>
 </head>
 <body>
-<h1>Add to Mood Board — iOS Shortcut</h1>
-<a class="btn" id="installBtn">Open in Shortcuts App</a>
-<div class="step"><b>What it does:</b>Share any URL or text from Safari → it gets added to your mood board and syncs to both users in real-time.</div>
-<div class="step"><b>After installing:</b>In Safari, tap Share → scroll down → tap "Add to Mood Board"</div>
-<script>
-// Build the Apple Shortcut URL scheme
-// This creates a shortcut that accepts share sheet input and POSTs to the API
-const boardId = 'main'
-const base = location.origin
-const apiUrl = `${base}/api/board/${boardId}/add`
+<h1>Share to Mood Board</h1>
+<p class="subtitle">Add links, text, and images from any app on your iPhone.</p>
 
-// Apple Shortcuts URL scheme to import a shortcut
-// We'll use the shortcuts:// scheme with x-callback
-// Unfortunately, there's no direct way to create a shortcut via URL
-// Instead, we'll link to an iCloud shortcut or use the shortcuts:// import
+<a class="btn" href="/add-to-mood-board.shortcut" download>Install iOS Shortcut</a>
+<a class="btn-ghost" href="/">Back to Board</a>
 
-// Build a .shortcut file approach - create a downloadable shortcut
-document.getElementById('installBtn').href = `shortcuts://x-callback-url/run-shortcut?name=Add%20to%20Mood%20Board`
-document.getElementById('installBtn').textContent = 'See setup instructions below'
-
-// Show manual instructions since programmatic shortcut creation is limited
-document.body.innerHTML += `
-<div style="margin-top: 20px">
-<h2 style="font-size: 16px">Quick Setup (1 minute):</h2>
-<ol style="font-size: 14px; line-height: 1.8">
-<li>Open <b>Shortcuts</b> app on your iPhone</li>
-<li>Tap <b>+</b> in the top right</li>
-<li>Tap <b>Add Action</b>, search for <b>"Receive"</b></li>
-<li>Select <b>"Receive input from Share Sheet"</b> — set types to <b>URLs</b></li>
-<li>Tap <b>+</b> again, search for <b>"URL"</b></li>
-<li>Select <b>"URL"</b> action, paste this:<br><code style="background:#e8e8e8;padding:2px 6px;border-radius:4px;font-size:12px;user-select:all">${apiUrl}</code></li>
-<li>Tap <b>+</b>, search for <b>"Get Contents"</b></li>
-<li>Select <b>"Get Contents of URL"</b></li>
-<li>Tap <b>Show More</b> → Method: <b>POST</b> → Request Body: <b>JSON</b></li>
-<li>Add key: <b>url</b>, value: tap and select <b>"Shortcut Input"</b></li>
-<li>Add key: <b>title</b>, value: tap and select <b>"Shortcut Input"</b></li>
-<li>Tap the name at top, rename to <b>"Add to Mood Board"</b></li>
-<li>Tap <b>Done</b>!</li>
-</ol>
-<p style="font-size:13px;color:#9b9a97">Now in Safari: Share → Add to Mood Board</p>
+<div class="card" style="margin-top: 20px">
+  <h2>What it captures</h2>
+  <p>
+    <span class="tag">Links</span>
+    <span class="tag">Selected text</span>
+    <span class="tag">Articles</span>
+    <span class="tag">Images</span>
+  </p>
+  <p style="margin-top: 8px">When you share text from Safari, the page URL is automatically included. You pick which room to add it to.</p>
 </div>
-`
-</script>
+
+<div class="card">
+  <h2>After installing</h2>
+  <ol class="steps">
+    <li>Open any app (Safari, Instagram, Pinterest...)</li>
+    <li>Tap the <strong>Share</strong> button</li>
+    <li>Scroll down and tap <strong>Add to Mood Board</strong></li>
+    <li>Pick a room — done!</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2>Tip: Move it up in your share sheet</h2>
+  <p>In the share sheet, scroll to the end of the actions list and tap <strong>Edit Actions</strong>. Move "Add to Mood Board" to your favorites so it appears at the top.</p>
+</div>
 </body>
 </html>

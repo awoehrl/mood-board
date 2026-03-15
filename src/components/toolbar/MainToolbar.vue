@@ -142,6 +142,9 @@ function onFileSelected(e) {
           <div v-if="showMenu" class="dropdown">
             <button class="dropdown-item" @click="emit('fit-all'); showMenu = false">Fit to screen</button>
             <button v-if="store.selectedZoneId" class="dropdown-item" :disabled="arranging" @click="autoArrange(); showMenu = false">{{ arranging ? 'Sorting...' : 'Auto-arrange' }}</button>
+            <div class="dropdown-sep" />
+            <a class="dropdown-item" href="/add-to-mood-board.shortcut" download @click="showMenu = false">Install iOS Shortcut</a>
+            <div class="dropdown-sep" />
             <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
             <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
           </div>
@@ -314,6 +317,8 @@ function onFileSelected(e) {
   transition: background 0.1s;
 }
 .dropdown-item:hover { background: var(--hover); }
+.dropdown-sep { height: 1px; background: var(--border); margin: 4px 0; }
+a.dropdown-item { text-decoration: none; }
 
 .dropdown-enter-active, .dropdown-leave-active { transition: all 0.15s ease; }
 .dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px); }

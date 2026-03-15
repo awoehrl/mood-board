@@ -165,14 +165,33 @@ app.post('/api/board/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+// Grid-based positioning: find next open slot in a zone
+function findNextSlot(zone, w, h) {
+  const pad = 12
+  const cols = Math.max(1, Math.floor((zone.width - pad) / (w + pad)))
+  for (let row = 0; row < 100; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = pad + col * (w + pad)
+      const y = pad + row * (h + pad)
+      const overlaps = zone.elements.some(el =>
+        x < el.x + el.width && x + w > el.x &&
+        y < el.y + el.height && y + h > el.y
+      )
+      if (!overlaps) return { x, y }
+    }
+  }
+  return { x: pad, y: pad + zone.elements.length * (h + pad) }
+}
+
 // API: Add a single element to a board zone
+// Accepts: { url, text, title, image (base64), zoneName/zoneId }
 app.post('/api/board/:id/add', async (req, res) => {
   const boardId = req.params.id
   const room = await getRoom(boardId)
   if (!room.board?.zones?.length) {
     return res.status(404).json({ error: 'Board has no zones yet. Open the app and create a zone first.' })
   }
-  const { zoneId, zoneName, url, text, title } = req.body
+  const { zoneId, zoneName, url, text, title, image } = req.body
   const zone = zoneId
     ? room.board.zones.find(z => z.id === zoneId)
     : zoneName
@@ -180,36 +199,75 @@ app.post('/api/board/:id/add', async (req, res) => {
       : room.board.zones[0]
   if (!zone) return res.status(404).json({ error: 'Zone not found', available: room.board.zones.map(z => z.name) })
 
-  const content = url || text || title || ''
-  const isImage = /\.(jpe?g|png|gif|webp|svg|avif)/i.test(content)
-  const isUrl = /^https?:\/\//i.test(content)
-
   const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
   let element
 
-  if (isImage) {
+  // Base64 image upload
+  if (image) {
+    let src = image
+    try {
+      if (SUPABASE_URL && SUPABASE_SERVICE_KEY) src = await uploadToSupabase(image)
+    } catch { /* keep base64 */ }
+    const w = 200, h = 150
+    const pos = findNextSlot(zone, w, h)
     element = {
-      id, type: 'image', x: 20, y: 40 + zone.elements.length * 30,
-      width: 200, height: 150, note: null,
-      data: { src: content, sourceUrl: content, alt: title || '' }
+      id, type: 'image', ...pos, width: w, height: h, note: null,
+      data: { src, sourceUrl: url || null, alt: title || 'Shared image' }
     }
-  } else if (isUrl) {
-    element = {
-      id, type: 'link', x: 20, y: 40 + zone.elements.length * 30,
-      width: 200, height: 40, note: null,
-      data: { url: content, label: title || content }
+  }
+  // Text + URL together: save text as note on a link element
+  else if (text && url) {
+    const isImageUrl = /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i.test(url)
+    if (isImageUrl) {
+      const w = 200, h = 150
+      const pos = findNextSlot(zone, w, h)
+      element = {
+        id, type: 'image', ...pos, width: w, height: h, note: text || null,
+        data: { src: url, sourceUrl: url, alt: title || '' }
+      }
+    } else {
+      const w = 240, h = 56
+      const pos = findNextSlot(zone, w, h)
+      element = {
+        id, type: 'link', ...pos, width: w, height: h, note: text || null,
+        data: { url, label: title || text || url }
+      }
     }
-  } else {
+  }
+  // URL only
+  else if (url) {
+    const isImageUrl = /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i.test(url)
+    if (isImageUrl) {
+      const w = 200, h = 150
+      const pos = findNextSlot(zone, w, h)
+      element = {
+        id, type: 'image', ...pos, width: w, height: h, note: null,
+        data: { src: url, sourceUrl: url, alt: title || '' }
+      }
+    } else {
+      const w = 240, h = 56
+      const pos = findNextSlot(zone, w, h)
+      element = {
+        id, type: 'link', ...pos, width: w, height: h, note: null,
+        data: { url, label: title || url }
+      }
+    }
+  }
+  // Text only
+  else {
+    const content = text || title || ''
+    const w = 200, h = 80
+    const pos = findNextSlot(zone, w, h)
     element = {
-      id, type: 'text', x: 20, y: 40 + zone.elements.length * 30,
-      width: 200, height: 60, note: null,
-      data: { content: content || title }
+      id, type: 'text', ...pos, width: w, height: h, note: null,
+      data: { content }
     }
   }
 
   zone.elements.push(element)
-  broadcast(room, { type: 'sync', board: room.board })
-  debouncedSave(boardId, room.board)
+  room.version = (room.version || 0) + 1
+  broadcast(room, { type: 'sync', board: room.board, version: room.version })
+  debouncedSave(boardId, { ...room.board, _version: room.version })
   res.json({ ok: true, zone: zone.name, type: element.type })
 })
 
