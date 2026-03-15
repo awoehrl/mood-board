@@ -29,6 +29,10 @@ function onZonePointerDown(e) {
   if (isResizing.value) return
   if (e.target.closest('[data-element]') || e.target.closest('[data-resize]')) return
   store.selectZone(props.zone.id)
+
+  // On touch, only allow dragging from the header
+  if (e.pointerType === 'touch' && !e.target.closest('.zone-header')) return
+
   isDragging.value = true
   undoPushedForDrag = false
   dragOffset = { x: e.clientX / getScale() - props.zone.x, y: e.clientY / getScale() - props.zone.y }
@@ -75,6 +79,8 @@ function onElementPointerDown(e, el) {
   const s = getScale()
   const sx = e.clientX, sy = e.clientY
   let pushed = false
+  const isTouch = e.pointerType === 'touch'
+  let thresholdMet = !isTouch // Mouse: immediate; Touch: needs 8px
 
   // Capture initial positions for all moving elements
   const zone = props.zone
@@ -85,6 +91,11 @@ function onElementPointerDown(e, el) {
   }
 
   const onMove = (ev) => {
+    if (!thresholdMet) {
+      const dist = Math.hypot(ev.clientX - sx, ev.clientY - sy)
+      if (dist < 8) return
+      thresholdMet = true
+    }
     if (!pushed) { store.pushUndo(); pushed = true }
     const dx = (ev.clientX - sx) / s
     const dy = (ev.clientY - sy) / s
@@ -242,6 +253,8 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
 .zone-resize:hover { opacity: 1; }
 
 @media (pointer: coarse) {
+  .zone-header { height: 44px; }
+  .zone-body { height: calc(100% - 44px); }
   .zone-resize { width: 32px; height: 32px; }
 }
 </style>

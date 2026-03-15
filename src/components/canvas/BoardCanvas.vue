@@ -37,15 +37,29 @@ function isCanvasBackground(target) {
   return target === viewport.value || target.classList.contains('dots') || target.hasAttribute('data-canvas-layer')
 }
 
+function isTouchPanTarget(target) {
+  // Canvas background OR zone body (not header, not element) — allows touch panning over zones
+  if (isCanvasBackground(target)) return true
+  if (target.closest('[data-element]') || target.closest('.zone-header') || target.closest('[data-resize]')) return false
+  if (target.closest('[data-zone]')) return true
+  return false
+}
+
+let touchPanThresholdMet = false
+let touchPanOrigin = null
+
 function onPointerDown(e) {
   if (e.button === 1 || (e.button === 0 && spaceHeld.value)) {
     isPanning.value = true
+    touchPanThresholdMet = true
     panStart = { x: e.clientX - canvas.panX.value, y: e.clientY - canvas.panY.value }
     viewport.value.setPointerCapture(e.pointerId)
     e.preventDefault()
-  } else if (e.button === 0 && e.pointerType === 'touch' && isCanvasBackground(e.target)) {
-    // Single-finger touch on canvas background → pan
+  } else if (e.button === 0 && e.pointerType === 'touch' && isTouchPanTarget(e.target)) {
+    // Single-finger touch on canvas background or zone body → pan (with threshold)
     isPanning.value = true
+    touchPanThresholdMet = false
+    touchPanOrigin = { x: e.clientX, y: e.clientY }
     panStart = { x: e.clientX - canvas.panX.value, y: e.clientY - canvas.panY.value }
     viewport.value.setPointerCapture(e.pointerId)
     e.preventDefault()
@@ -56,11 +70,32 @@ function onPointerDown(e) {
 
 function onPointerMove(e) {
   if (!isPanning.value || !panStart) return
+  if (!touchPanThresholdMet) {
+    const dist = Math.hypot(e.clientX - touchPanOrigin.x, e.clientY - touchPanOrigin.y)
+    if (dist < 8) return
+    touchPanThresholdMet = true
+  }
   canvas.panX.value = e.clientX - panStart.x
   canvas.panY.value = e.clientY - panStart.y
 }
 
-function onPointerUp() { isPanning.value = false; panStart = null }
+function onPointerUp(e) {
+  // If touch pan never met threshold, treat as tap (zone selection)
+  if (isPanning.value && !touchPanThresholdMet && touchPanOrigin && e.pointerType === 'touch') {
+    const target = document.elementFromPoint(touchPanOrigin.x, touchPanOrigin.y)
+    const zoneEl = target?.closest('[data-zone]')
+    if (zoneEl) {
+      // Zone body was tapped — let ZoneCard handle selection via its pointerdown
+      // (already happened), just don't pan
+    } else {
+      store.clearSelection()
+    }
+  }
+  isPanning.value = false
+  panStart = null
+  touchPanOrigin = null
+  touchPanThresholdMet = false
+}
 
 function onDrop(e) {
   if (!viewport.value) return
@@ -181,5 +216,8 @@ defineExpose({ canvas })
   inset: 0;
   pointer-events: none;
   background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px);
+}
+@media (max-width: 640px) {
+  .viewport { top: 84px; }
 }
 </style>

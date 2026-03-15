@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
 import UserAvatars from '../UserAvatars.vue'
 
@@ -17,6 +17,24 @@ const isEditingName = ref(false)
 const editName = ref('')
 const fileInput = ref(null)
 const showMenu = ref(false)
+const menuWrap = ref(null)
+
+// Click-outside handler for dropdown (works on both desktop and mobile)
+let removeClickOutside = null
+watch(showMenu, (open) => {
+  if (removeClickOutside) { removeClickOutside(); removeClickOutside = null }
+  if (open) {
+    const handler = (e) => {
+      if (menuWrap.value && !menuWrap.value.contains(e.target)) {
+        showMenu.value = false
+      }
+    }
+    // Use setTimeout so the opening click doesn't immediately close it
+    setTimeout(() => document.addEventListener('pointerdown', handler, true), 0)
+    removeClickOutside = () => document.removeEventListener('pointerdown', handler, true)
+  }
+})
+onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
 
 function addZone() {
   const name = prompt('Room name:', 'New Room')
@@ -52,8 +70,9 @@ function onFileSelected(e) {
         {{ store.name }}
       </button>
 
-      <span class="sep">/</span>
+    </div>
 
+    <div class="zone-bar">
       <button
         v-for="zone in store.zones"
         :key="zone.id"
@@ -65,7 +84,7 @@ function onFileSelected(e) {
         <span class="chip-label">{{ zone.name }}</span>
       </button>
 
-      <button class="icon-btn" @click="addZone" title="New zone">
+      <button class="icon-btn add-zone-btn" @click="addZone" title="New zone">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
     </div>
@@ -93,12 +112,13 @@ function onFileSelected(e) {
 
       <div class="divider" />
 
-      <div class="menu-wrap">
+      <div ref="menuWrap" class="menu-wrap">
         <button class="icon-btn" @click="showMenu = !showMenu" title="More">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="3" r="1" fill="currentColor"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="11" r="1" fill="currentColor"/></svg>
         </button>
         <Transition name="dropdown">
-          <div v-if="showMenu" class="dropdown" @mouseleave="showMenu = false">
+          <div v-if="showMenu" class="dropdown">
+            <button class="dropdown-item" @click="emit('fit-all'); showMenu = false">Fit to screen</button>
             <button class="dropdown-item" @click="emit('export'); showMenu = false">Export JSON</button>
             <button class="dropdown-item" @click="triggerImport(); showMenu = false">Import JSON</button>
           </div>
@@ -149,11 +169,12 @@ function onFileSelected(e) {
   letter-spacing: -0.02em;
 }
 
-.sep {
-  color: var(--text-muted);
-  font-size: 14px;
-  margin: 0 2px;
-  font-weight: 300;
+.zone-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .zone-chip {
@@ -262,13 +283,25 @@ function onFileSelected(e) {
 .dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px); }
 
 @media (max-width: 640px) {
-  .chip-label { display: none; }
-  .zone-chip { padding: 0 4px; }
+  .topbar { flex-wrap: wrap; height: auto; min-height: 48px; }
+  .zone-bar {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    backdrop-filter: blur(12px);
+  }
+  .zone-chip { height: 32px; padding: 0 10px; flex-shrink: 0; }
+  .add-zone-btn { flex-shrink: 0; }
 }
 @media (max-width: 480px) {
   .zoom-group { display: none; }
 }
 @media (pointer: coarse) {
   .icon-btn { min-width: 44px; min-height: 44px; }
+  .zone-chip { height: 32px; padding: 0 10px; }
 }
 </style>
