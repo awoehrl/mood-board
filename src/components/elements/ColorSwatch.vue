@@ -1,15 +1,20 @@
 <script setup>
 import { ref } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
+import { formatItemPrice, getItemStatusLabel } from '../../utils/itemMetadata.js'
 
 const props = defineProps({ element: Object, zoneId: String })
 const store = useBoardStore()
 const isEditingLabel = ref(false)
 const editLabel = ref('')
 
-function startEditLabel() { editLabel.value = props.element.data.label || ''; isEditingLabel.value = true }
+function startEditLabel() { editLabel.value = props.element.item?.title || props.element.data.label || ''; isEditingLabel.value = true }
 function saveLabel() {
-  store.updateElement(props.zoneId, props.element.id, { data: { ...props.element.data, label: editLabel.value } })
+  const nextTitle = editLabel.value.trim()
+  store.updateElement(props.zoneId, props.element.id, {
+    data: { ...props.element.data, label: nextTitle },
+    item: { title: nextTitle },
+  })
   isEditingLabel.value = false
 }
 </script>
@@ -18,10 +23,16 @@ function saveLabel() {
   <div class="swatch-el">
     <div class="swatch-color" :style="{ background: element.data.color || '#ccc' }" />
     <div class="swatch-info">
-      <span class="swatch-hex">{{ element.data.color }}</span>
-      <input v-if="isEditingLabel" v-model="editLabel" class="swatch-label-input" placeholder="Label..."
-        @blur="saveLabel" @keydown.enter="saveLabel" @keydown.escape="isEditingLabel = false" @pointerdown.stop autofocus />
-      <span v-else class="swatch-label" @dblclick.stop="startEditLabel">{{ element.data.label || 'Untitled' }}</span>
+      <div class="swatch-copy">
+        <div class="swatch-meta">
+          <span class="swatch-status">{{ getItemStatusLabel(element.item?.status) }}</span>
+          <span v-if="formatItemPrice(element.item)" class="swatch-price">{{ formatItemPrice(element.item) }}</span>
+        </div>
+        <span class="swatch-hex">{{ element.data.color }}</span>
+        <input v-if="isEditingLabel" v-model="editLabel" class="swatch-label-input" placeholder="Label..."
+          @blur="saveLabel" @keydown.enter="saveLabel" @keydown.escape="isEditingLabel = false" @pointerdown.stop autofocus />
+        <span v-else class="swatch-label" @dblclick.stop="startEditLabel">{{ element.item?.title || element.data.label || 'Untitled' }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -40,10 +51,32 @@ function saveLabel() {
 .swatch-info {
   padding: 6px 10px;
   display: flex;
-  align-items: center;
-  gap: 8px;
   border-top: 1px solid var(--border);
 }
+.swatch-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.swatch-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.swatch-status,
+.swatch-price {
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+.swatch-price { color: #7a4e16; }
 .swatch-hex {
   font-size: 10px;
   font-family: ui-monospace, "SF Mono", monospace;

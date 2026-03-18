@@ -228,21 +228,236 @@ function relayoutZone(zone) {
 
 // Shared element creation logic
 const IMAGE_URL_RE = /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i
+const ITEM_STATUSES = new Set(['idea', 'shortlist', 'selected', 'ordered', 'installed', 'rejected'])
 
-function createElement(zone, { url, text, title, imageSrc }) {
+function cleanText(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function cleanUrl(value) {
+  const text = cleanText(value)
+  if (!text) return ''
+  try {
+    const url = new URL(text)
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.toString()
+  } catch {
+    return ''
+  }
+  return ''
+}
+
+function getDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
+function decodeHtml(value = '') {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+function extractMetaContent(html, keys = []) {
+  for (const key of keys) {
+    const patterns = [
+      new RegExp(`<meta[^>]+property=["']${key}["'][^>]+content=["']([^"']+)["']`, 'i'),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${key}["']`, 'i'),
+      new RegExp(`<meta[^>]+name=["']${key}["'][^>]+content=["']([^"']+)["']`, 'i'),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${key}["']`, 'i'),
+    ]
+    for (const pattern of patterns) {
+      const match = html.match(pattern)
+      if (match?.[1]) return decodeHtml(match[1].trim())
+    }
+  }
+  return ''
+}
+
+function extractTitle(html) {
+  const ogTitle = extractMetaContent(html, ['og:title', 'twitter:title'])
+  if (ogTitle) return ogTitle
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+  return match?.[1] ? decodeHtml(match[1].trim()) : ''
+}
+
+function parsePrice(value) {
+  if (value == null || value === '') return null
+  const normalized = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'))
+  return Number.isFinite(normalized) ? normalized : null
+}
+
+function normalizeServerItem(type, data = {}, item = {}) {
+  if (type === 'text') return null
+  const productUrl = cleanUrl(item.productUrl) || (type === 'link' ? cleanUrl(data.url) : cleanUrl(data.sourceUrl))
+  const title = cleanText(item.title) || cleanText(data.label) || cleanText(data.alt) || cleanText(data.color) || 'Untitled'
+  return {
+    title,
+    vendor: cleanText(item.vendor) || getDomain(productUrl),
+    productUrl,
+    price: parsePrice(item.price),
+    currency: cleanText(item.currency).toUpperCase() || 'EUR',
+    sku: cleanText(item.sku),
+    dimensions: cleanText(item.dimensions),
+    finish: cleanText(item.finish),
+    tags: Array.isArray(item.tags) ? item.tags.map((tag) => cleanText(tag)).filter(Boolean) : [],
+    status: ITEM_STATUSES.has(item.status) ? item.status : 'idea',
+  }
+}
+
+function findProductNode(node) {
+  if (!node || typeof node !== 'object') return null
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findProductNode(child)
+      if (found) return found
+    }
+    return null
+  }
+  const type = node['@type']
+  const types = Array.isArray(type) ? type : [type]
+  if (types.some((value) => typeof value === 'string' && value.toLowerCase().includes('product'))) {
+    return node
+  }
+  for (const value of Object.values(node)) {
+    const found = findProductNode(value)
+    if (found) return found
+  }
+  return null
+}
+
+function extractJsonLdProduct(html) {
+  const matches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)
+  for (const match of matches) {
+    try {
+      const parsed = JSON.parse(match[1])
+      const product = findProductNode(parsed)
+      if (!product) continue
+      const offers = Array.isArray(product.offers) ? product.offers[0] : product.offers
+      const brand = typeof product.brand === 'string' ? product.brand : product.brand?.name
+      const image = Array.isArray(product.image) ? product.image[0] : product.image
+      return {
+        title: cleanText(product.name),
+        vendor: cleanText(brand),
+        price: parsePrice(offers?.price),
+        currency: cleanText(offers?.priceCurrency).toUpperCase(),
+        image: cleanUrl(image),
+      }
+    } catch {
+      // Ignore invalid JSON-LD blocks.
+    }
+  }
+  return null
+}
+
+async function fetchUrlMetadata(url) {
+  const clean = cleanUrl(url)
+  if (!clean || IMAGE_URL_RE.test(clean)) {
+    return {
+      title: '',
+      vendor: getDomain(clean),
+      price: null,
+      currency: 'EUR',
+      image: IMAGE_URL_RE.test(clean) ? clean : '',
+      productUrl: clean,
+    }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 4500)
+  try {
+    const response = await fetch(clean, {
+      headers: {
+        'user-agent': 'MoodBoardBot/1.0 (+https://mood-board.local)',
+        accept: 'text/html,application/xhtml+xml',
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    })
+    const finalUrl = cleanUrl(response.url) || clean
+    const contentType = response.headers.get('content-type') || ''
+    if (!response.ok || !contentType.includes('text/html')) {
+      return {
+        title: '',
+        vendor: getDomain(finalUrl),
+        price: null,
+        currency: 'EUR',
+        image: '',
+        productUrl: finalUrl,
+      }
+    }
+
+    const html = await response.text()
+    const jsonLd = extractJsonLdProduct(html)
+    const title = jsonLd?.title || extractTitle(html)
+    const image = cleanUrl(jsonLd?.image) || cleanUrl(extractMetaContent(html, ['og:image', 'twitter:image']))
+    const vendor = cleanText(jsonLd?.vendor) || extractMetaContent(html, ['og:site_name', 'application-name']) || getDomain(finalUrl)
+    const currency = cleanText(jsonLd?.currency || extractMetaContent(html, ['product:price:currency'])).toUpperCase() || 'EUR'
+    const price = jsonLd?.price ?? parsePrice(extractMetaContent(html, ['product:price:amount']))
+
+    return {
+      title,
+      vendor,
+      price,
+      currency,
+      image,
+      productUrl: finalUrl,
+    }
+  } catch {
+    return {
+      title: '',
+      vendor: getDomain(clean),
+      price: null,
+      currency: 'EUR',
+      image: '',
+      productUrl: clean,
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function buildCaptureItem({ url, title, text }) {
+  const metadata = await fetchUrlMetadata(url)
+  return {
+    item: {
+      title: metadata.title || cleanText(title) || cleanText(text) || getDomain(metadata.productUrl) || 'Untitled',
+      vendor: metadata.vendor || getDomain(metadata.productUrl),
+      productUrl: metadata.productUrl,
+      price: metadata.price,
+      currency: metadata.currency || 'EUR',
+      sku: '',
+      dimensions: '',
+      finish: '',
+      tags: [],
+      status: 'idea',
+    },
+    previewImage: metadata.image || '',
+  }
+}
+
+function createElement(zone, { url, text, title, imageSrc, item }) {
   const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
 
   if (imageSrc) {
     const w = 200, h = 150, pos = findNextSlot(zone, w, h)
-    return { id, type: 'image', ...pos, width: w, height: h, note: text || null, data: { src: imageSrc, sourceUrl: url || null, alt: title || 'Shared image' } }
+    const data = { src: imageSrc, sourceUrl: url || item?.productUrl || null, alt: title || item?.title || 'Shared image' }
+    return { id, type: 'image', ...pos, width: w, height: h, note: text || null, data, item: normalizeServerItem('image', data, item) }
   }
   if (url && IMAGE_URL_RE.test(url)) {
     const w = 200, h = 150, pos = findNextSlot(zone, w, h)
-    return { id, type: 'image', ...pos, width: w, height: h, note: text || null, data: { src: url, sourceUrl: url, alt: title || '' } }
+    const data = { src: url, sourceUrl: url, alt: title || item?.title || '' }
+    return { id, type: 'image', ...pos, width: w, height: h, note: text || null, data, item: normalizeServerItem('image', data, item) }
   }
   if (url) {
     const w = 240, h = 56, pos = findNextSlot(zone, w, h)
-    return { id, type: 'link', ...pos, width: w, height: h, note: text || null, data: { url, label: title || text || url } }
+    const data = { url, label: title || item?.title || text || url }
+    return { id, type: 'link', ...pos, width: w, height: h, note: text || null, data, item: normalizeServerItem('link', data, item) }
   }
   const w = 200, h = 80, pos = findNextSlot(zone, w, h)
   return { id, type: 'text', ...pos, width: w, height: h, note: null, data: { content: text || title || '' } }
@@ -261,6 +476,13 @@ function addElementToZone(room, boardId, zone, element) {
   broadcast(room, { type: 'sync', board: room.board, version: room.version })
   debouncedSave(boardId, { ...room.board, _version: room.version })
 }
+
+app.post('/api/enrich', async (req, res) => {
+  const { url, title, text } = req.body || {}
+  if (!url) return res.status(400).json({ error: 'No url provided' })
+  const capture = await buildCaptureItem({ url, title, text })
+  res.json(capture)
+})
 
 // API: Add a single element to a board zone
 app.post('/api/board/:id/add', async (req, res) => {
@@ -282,7 +504,8 @@ app.post('/api/board/:id/add', async (req, res) => {
     } catch { /* keep base64 */ }
   }
 
-  const element = createElement(zone, { url, text, title, imageSrc })
+  const capture = url ? await buildCaptureItem({ url, text, title }) : null
+  const element = createElement(zone, { url, text, title, imageSrc, item: capture?.item || null })
   addElementToZone(room, boardId, zone, element)
   res.json({ ok: true, zone: zone.name, type: element.type })
 })
@@ -307,7 +530,8 @@ app.get('/api/board/:id/add-simple', async (req, res) => {
   const zone = resolveZone(room.board, { zoneName })
   if (!zone) return res.json({ error: 'Zone not found', available: room.board.zones.map(z => z.name) })
 
-  const element = createElement(zone, { url, text })
+  const capture = url ? await buildCaptureItem({ url, text }) : null
+  const element = createElement(zone, { url, text, item: capture?.item || null })
   addElementToZone(room, boardId, zone, element)
   res.json({ ok: true, zone: zone.name, type: element.type })
 })

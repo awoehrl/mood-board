@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { newId } from '../utils/ids.js'
 import { ZONE_PAD, ZONE_MAX_WIDTH, ZONE_HEADER, CELL_W, CELL_H, estimateNotesHeight } from '../utils/gridConstants.js'
+import { ensureElementMetadata, getElementTitle, supportsItemMetadata, formatItemPrice } from '../utils/itemMetadata.js'
 
 const DEFAULT_ZONE_COLORS = [
   '#3b82f6', '#ef4444', '#10b981', '#f59e0b',
@@ -33,6 +34,22 @@ export const useBoardStore = defineStore('board', () => {
     return selectedZone.value.elements.find((e) => e.id === selectedElementId.value) ?? null
   })
 
+  const selectedElements = computed(() => {
+    if (!selectedZone.value || selectedElementIds.value.size === 0) return []
+    return selectedZone.value.elements.filter((element) => selectedElementIds.value.has(element.id))
+  })
+
+  const allElements = computed(() =>
+    zones.value.flatMap((zone) =>
+      zone.elements.map((element) => ({
+        zoneId: zone.id,
+        zoneName: zone.name,
+        zoneColor: zone.color,
+        element,
+      }))
+    )
+  )
+
   // Undo/Redo
   const undoStack = ref([])
   const redoStack = ref([])
@@ -52,8 +69,15 @@ export const useBoardStore = defineStore('board', () => {
   function restoreSnapshot(snapshot) {
     const data = JSON.parse(snapshot)
     name.value = data.name || 'My House Renovation'
-    zones.value = data.zones || []
+    zones.value = normalizeZones(data.zones || [])
     colorIndex = zones.value.length
+  }
+
+  function normalizeZones(nextZones) {
+    return nextZones.map((zone) => ({
+      ...zone,
+      elements: (zone.elements || []).map((element) => ensureElementMetadata(element)),
+    }))
   }
 
   function undo() {
@@ -185,8 +209,9 @@ export const useBoardStore = defineStore('board', () => {
       type: element.type,
       note: element.note ?? null,
       data: element.data ?? {},
+      item: element.item ?? null,
     }
-    zone.elements.push(el)
+    zone.elements.push(ensureElementMetadata(el))
     autoResizeZone(zone)
     selectedZoneId.value = zoneId
     selectedElementIds.value = new Set([el.id])
@@ -196,8 +221,16 @@ export const useBoardStore = defineStore('board', () => {
   function updateElement(zoneId, elementId, updates) {
     const zone = zones.value.find((z) => z.id === zoneId)
     if (!zone) return
-    const el = zone.elements.find((e) => e.id === elementId)
-    if (el) Object.assign(el, updates)
+    const index = zone.elements.findIndex((e) => e.id === elementId)
+    if (index === -1) return
+    const current = zone.elements[index]
+    const next = ensureElementMetadata({
+      ...current,
+      ...updates,
+      data: updates.data ? { ...current.data, ...updates.data } : current.data,
+      item: updates.item ? { ...(current.item || {}), ...updates.item } : current.item,
+    })
+    zone.elements[index] = next
   }
 
   function deleteElement(zoneId, elementId) {
@@ -236,8 +269,9 @@ export const useBoardStore = defineStore('board', () => {
   }
 
   function selectElement(zoneId, elementId, additive = false) {
+    const sameZone = selectedZoneId.value === zoneId
     selectedZoneId.value = zoneId
-    if (additive) {
+    if (additive && sameZone) {
       const next = new Set(selectedElementIds.value)
       if (next.has(elementId)) {
         next.delete(elementId)
@@ -257,7 +291,7 @@ export const useBoardStore = defineStore('board', () => {
 
   function loadBoard(data) {
     name.value = data.name || 'My House Renovation'
-    zones.value = data.zones || []
+    zones.value = normalizeZones(data.zones || [])
     // Re-layout all zones to clean grid positions
     for (const zone of zones.value) {
       relayoutZone(zone)
@@ -282,25 +316,36 @@ export const useBoardStore = defineStore('board', () => {
         md += `${zone.description.trim()}\n\n`
       }
       for (const el of zone.elements) {
+        const title = supportsItemMetadata(el.type) ? getElementTitle(el) : ''
+        const price = supportsItemMetadata(el.type) ? formatItemPrice(el.item) : ''
+        const metaLine = [
+          el.item?.vendor || null,
+          price || null,
+          el.item?.status ? `Status: ${el.item.status}` : null,
+        ].filter(Boolean).join(' · ')
         if (el.type === 'image') {
           const src = el.data?.src || ''
           const alt = el.data?.alt || ''
           const url = el.data?.sourceUrl
+          if (title) md += `### ${title}\n\n`
           if (url) {
             md += `[![${alt}](${src})](${url})\n\n`
           } else {
             md += `![${alt}](${src})\n\n`
           }
+          if (metaLine) md += `${metaLine}\n\n`
           if (el.note) md += `> ${el.note}\n\n`
         } else if (el.type === 'link') {
           const url = el.data?.url || ''
-          const label = el.data?.label || url
+          const label = title || el.data?.label || url
           md += `- [${label}](${url})\n`
+          if (metaLine) md += `  ${metaLine}\n`
           if (el.note) md += `  > ${el.note}\n`
         } else if (el.type === 'text') {
           md += `${el.data?.content || ''}\n\n`
         } else if (el.type === 'color-swatch') {
-          md += `- Color: \`${el.data?.hex || ''}\`\n`
+          md += `- ${title || 'Color'}: \`${el.data?.color || ''}\`\n`
+          if (metaLine) md += `  ${metaLine}\n`
         }
       }
       md += '\n'
@@ -316,6 +361,8 @@ export const useBoardStore = defineStore('board', () => {
     selectedElementIds,
     selectedZone,
     selectedElement,
+    selectedElements,
+    allElements,
     readOnly,
     addZone,
     updateZone,

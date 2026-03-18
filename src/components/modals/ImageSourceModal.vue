@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
 
 const props = defineProps({ zoneId: String, elementId: String })
@@ -7,11 +7,20 @@ const emit = defineEmits(['close'])
 const store = useBoardStore()
 const url = ref('')
 
+onMounted(() => {
+  const zone = store.zones.find(z => z.id === props.zoneId)
+  const el = zone?.elements.find(e => e.id === props.elementId)
+  url.value = el?.data?.sourceUrl || el?.item?.productUrl || ''
+})
+
 function save() {
-  if (url.value.trim()) {
-    const zone = store.zones.find(z => z.id === props.zoneId)
-    const el = zone?.elements.find(e => e.id === props.elementId)
-    if (el) store.updateElement(props.zoneId, props.elementId, { data: { ...el.data, sourceUrl: url.value.trim() } })
+  const zone = store.zones.find(z => z.id === props.zoneId)
+  const el = zone?.elements.find(e => e.id === props.elementId)
+  if (el) {
+    store.updateElement(props.zoneId, props.elementId, {
+      data: { ...el.data, sourceUrl: url.value.trim() || null },
+      item: { productUrl: url.value.trim() || '', vendor: '' },
+    })
   }
   emit('close')
 }

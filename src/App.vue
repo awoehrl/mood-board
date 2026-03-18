@@ -4,6 +4,7 @@ import { useBoardStore } from './stores/board.js'
 import { useSync } from './composables/useSync.js'
 import { useToast } from './composables/useToast.js'
 import BoardCanvas from './components/canvas/BoardCanvas.vue'
+import DecisionView from './components/decision/DecisionView.vue'
 import MainToolbar from './components/toolbar/MainToolbar.vue'
 import ElementToolbar from './components/toolbar/ElementToolbar.vue'
 import ImageSourceModal from './components/modals/ImageSourceModal.vue'
@@ -12,7 +13,11 @@ import OnboardingModal from './components/modals/OnboardingModal.vue'
 import LinkInputModal from './components/modals/LinkInputModal.vue'
 import ConfirmModal from './components/modals/ConfirmModal.vue'
 import ImageViewer from './components/modals/ImageViewer.vue'
+import CompareModal from './components/modals/CompareModal.vue'
+import ItemInspector from './components/panels/ItemInspector.vue'
 import ToastContainer from './components/ui/ToastContainer.vue'
+import { enrichUrlMetadata } from './utils/clipboard.js'
+import { supportsItemMetadata } from './utils/itemMetadata.js'
 
 const store = useBoardStore()
 const { boardId, connected, syncing, users, exportJson, importJson, debouncedSave } = useSync()
@@ -24,6 +29,25 @@ const showLinkInput = ref(false)
 const showDeleteConfirm = ref(false)
 const imageSourceModal = ref(null)
 const imageViewer = ref(null)
+const currentView = ref('canvas')
+const showCompare = ref(false)
+
+const compareItems = computed(() => {
+  if (!store.selectedZone) return []
+  return store.selectedElements
+    .filter((element) => supportsItemMetadata(element.type))
+    .map((element) => ({
+      zoneId: store.selectedZone.id,
+      zoneName: store.selectedZone.name,
+      element,
+    }))
+})
+
+const canCompare = computed(() =>
+  compareItems.value.length >= 2 &&
+  compareItems.value.length <= 4 &&
+  compareItems.value.length === store.selectedElements.length
+)
 
 const needsOnboarding = computed(() => !localStorage.getItem('mood-board-user-name'))
 const showOnboarding = ref(needsOnboarding.value)
@@ -40,17 +64,30 @@ function onOnboardingDone(name) {
 function onZoomIn() { boardCanvas.value?.canvas.zoomIn() }
 function onZoomOut() { boardCanvas.value?.canvas.zoomOut() }
 
+function withVisibleCanvas(callback) {
+  if (currentView.value === 'canvas') {
+    const el = boardCanvas.value?.$el
+    if (el) callback(el)
+    return
+  }
+  currentView.value = 'canvas'
+  requestAnimationFrame(() => {
+    const el = boardCanvas.value?.$el
+    if (el) callback(el)
+  })
+}
+
 function onFitAll() {
-  const el = boardCanvas.value?.$el
-  if (!el) return
-  boardCanvas.value.canvas.fitAll(store.zones, el.clientWidth, el.clientHeight)
+  withVisibleCanvas((el) => {
+    boardCanvas.value.canvas.fitAll(store.zones, el.clientWidth, el.clientHeight)
+  })
 }
 
 function onPanToZone(zone) {
-  const el = boardCanvas.value?.$el
-  if (!el) return
-  boardCanvas.value.canvas.panToZone(zone, el.clientWidth, el.clientHeight)
-  store.selectZone(zone.id)
+  withVisibleCanvas((el) => {
+    boardCanvas.value.canvas.panToZone(zone, el.clientWidth, el.clientHeight)
+    store.selectZone(zone.id)
+  })
 }
 
 async function onImport(file) {
@@ -65,12 +102,20 @@ function onShowImageSourceModal({ zoneId, elementId }) {
   imageSourceModal.value = { zoneId, elementId }
 }
 
-function onAddLink(url) {
+async function onAddLink(url) {
   if (!url || !store.selectedZoneId) return
   store.pushUndo()
+  let item = null
+  try {
+    const enriched = await enrichUrlMetadata(url)
+    item = enriched.item || null
+  } catch {
+    toast.show('Added link without page metadata', 'warning')
+  }
   store.addElement(store.selectedZoneId, {
     type: 'link', width: 240, height: 56,
-    data: { url, label: '' },
+    data: { url: item?.productUrl || url, label: '' },
+    item,
   })
 }
 
@@ -98,6 +143,25 @@ function onCopyLink() {
   toast.show('Link copied to clipboard', 'success')
 }
 
+function onSetView(view) {
+  currentView.value = view
+}
+
+function onOpenCompare() {
+  if (!canCompare.value) return
+  showCompare.value = true
+}
+
+function onShowOnBoard(row) {
+  currentView.value = 'canvas'
+  requestAnimationFrame(() => {
+    const zone = store.zones.find((candidate) => candidate.id === row.zoneId)
+    if (!zone) return
+    onPanToZone(zone)
+    store.selectElement(row.zoneId, row.element.id)
+  })
+}
+
 function onKeyDown(e) {
   // Undo/Redo
   if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
@@ -120,6 +184,7 @@ function onKeyDown(e) {
     }
   }
   if (e.key === 'Escape') {
+    if (showCompare.value) { showCompare.value = false; return }
     if (imageViewer.value) { imageViewer.value = null; return }
     store.clearSelection()
     showColorPicker.value = false
@@ -148,8 +213,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 
     <BoardCanvas
       ref="boardCanvas"
+      v-show="currentView === 'canvas'"
       @show-image-source-modal="onShowImageSourceModal"
       @open-viewer="imageViewer = $event"
+    />
+
+    <DecisionView
+      v-if="currentView === 'decision'"
+      @show-on-board="onShowOnBoard"
     />
 
     <MainToolbar
@@ -158,9 +229,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
       :syncing="syncing"
       :connected="connected"
       :board-id="boardId"
+      :current-view="currentView"
       @zoom-in="onZoomIn"
       @zoom-out="onZoomOut"
       @fit-all="onFitAll"
+      @set-view="onSetView"
       @pan-to-zone="onPanToZone"
       @export="exportJson"
       @export-markdown="onExportMarkdown"
@@ -172,7 +245,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
       @show-color-picker="showColorPicker = true"
       @show-link-input="showLinkInput = true"
       @show-delete-confirm="showDeleteConfirm = true"
+      @open-compare="onOpenCompare"
     />
+
+    <ItemInspector />
 
     <ToastContainer />
 
@@ -192,6 +268,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
       :zone-id="imageViewer.zoneId"
       :element-id="imageViewer.elementId"
       @close="imageViewer = null"
+    />
+
+    <CompareModal
+      v-if="showCompare"
+      :items="compareItems"
+      @close="showCompare = false"
     />
 
     <ConfirmModal

@@ -59,15 +59,13 @@
     const zoneSelect = document.getElementById('zoneSelect')
     const addBtn = document.getElementById('addBtn')
     const status = document.getElementById('status')
-    let boardData = null
 
     if (boardId) {
-      fetch(`/api/board/${boardId}`)
+      fetch(`/api/board/${boardId}/zones`)
         .then(r => r.json())
-        .then(data => {
-          boardData = data
-          if (data.zones?.length) {
-            zoneSelect.innerHTML = data.zones.map(z =>
+        .then(zones => {
+          if (zones?.length) {
+            zoneSelect.innerHTML = zones.map(z =>
               `<option value="${z.id}">${z.name}</option>`
             ).join('')
             addBtn.disabled = false
@@ -84,41 +82,18 @@
 
     addBtn.onclick = async () => {
       const zoneId = zoneSelect.value
-      if (!zoneId || !boardData) return
-
-      const zone = boardData.zones.find(z => z.id === zoneId)
-      if (!zone) return
-
-      const newId = crypto.randomUUID()
-      let element
-
-      if (isImage) {
-        element = {
-          id: newId, type: 'image', x: 20, y: 40 + zone.elements.length * 30,
-          width: 200, height: 150, note: null,
-          data: { src: content, sourceUrl: content, alt: sharedTitle || '' }
-        }
-      } else if (isUrl) {
-        element = {
-          id: newId, type: 'link', x: 20, y: 40 + zone.elements.length * 30,
-          width: 200, height: 40, note: null,
-          data: { url: content, label: sharedTitle || content }
-        }
-      } else {
-        element = {
-          id: newId, type: 'text', x: 20, y: 40 + zone.elements.length * 30,
-          width: 200, height: 60, note: null,
-          data: { content: content || sharedTitle }
-        }
-      }
-
-      zone.elements.push(element)
+      if (!zoneId) return
 
       try {
-        const res = await fetch(`/api/board/${boardId}`, {
+        const res = await fetch(`/api/board/${boardId}/add`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(boardData)
+          body: JSON.stringify({
+            zoneId,
+            url: isUrl || isImage ? content : '',
+            text: isUrl || isImage ? sharedText : (content || sharedTitle),
+            title: sharedTitle,
+          })
         })
         if (res.ok) {
           status.textContent = 'Added! You can close this page.'

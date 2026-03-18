@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
 import { getDomain } from '../../utils/clipboard.js'
+import { formatItemPrice, getItemStatusLabel } from '../../utils/itemMetadata.js'
 
 const props = defineProps({ element: Object, zoneId: String })
 const emit = defineEmits(['open-viewer'])
@@ -9,22 +10,61 @@ const store = useBoardStore()
 const isEditingUrl = ref(false)
 const editUrl = ref('')
 const imgError = ref(false)
+const isRepositioning = ref(false)
+const dragStart = ref(null)
+
+const focalX = computed(() => props.element.data.focalX ?? 50)
+const focalY = computed(() => props.element.data.focalY ?? 50)
+const objectPos = computed(() => `${focalX.value}% ${focalY.value}%`)
 
 function startEditUrl() { editUrl.value = props.element.data.sourceUrl || ''; isEditingUrl.value = true }
 function saveUrl() {
   store.updateElement(props.zoneId, props.element.id, {
     data: { ...props.element.data, sourceUrl: editUrl.value.trim() || null },
+    item: { productUrl: editUrl.value.trim() || '', vendor: '' },
   })
   isEditingUrl.value = false
+}
+
+function startReposition(e) {
+  isRepositioning.value = true
+  dragStart.value = { x: e.clientX, y: e.clientY, fx: focalX.value, fy: focalY.value }
+  document.addEventListener('pointermove', onRepoMove)
+  document.addEventListener('pointerup', onRepoUp)
+}
+
+function onRepoMove(e) {
+  if (!dragStart.value) return
+  const dx = e.clientX - dragStart.value.x
+  const dy = e.clientY - dragStart.value.y
+  // Invert: dragging right moves focal point left (moves visible area right)
+  const newFx = Math.max(0, Math.min(100, dragStart.value.fx - dx * 0.5))
+  const newFy = Math.max(0, Math.min(100, dragStart.value.fy - dy * 0.5))
+  store.updateElement(props.zoneId, props.element.id, {
+    data: { ...props.element.data, focalX: Math.round(newFx), focalY: Math.round(newFy) },
+  })
+}
+
+function onRepoUp() {
+  dragStart.value = null
+  isRepositioning.value = false
+  document.removeEventListener('pointermove', onRepoMove)
+  document.removeEventListener('pointerup', onRepoUp)
 }
 </script>
 
 <template>
-  <div class="img-el group">
+  <div class="img-el group" :class="{ 'is-repositioning': isRepositioning }">
+    <div v-if="element.item" class="img-el-badges">
+      <span class="img-el-badge">{{ getItemStatusLabel(element.item.status) }}</span>
+      <span v-if="formatItemPrice(element.item)" class="img-el-badge img-el-badge--price">{{ formatItemPrice(element.item) }}</span>
+    </div>
+
     <img
       v-if="element.data.src && !imgError"
       :src="element.data.src" :alt="element.data.alt || ''"
       class="img-el-img"
+      :style="{ objectPosition: objectPos }"
       draggable="false"
       @dblclick.stop="startEditUrl"
       @error="imgError = true"
@@ -36,6 +76,18 @@ function saveUrl() {
     <!-- Expand button -->
     <button class="img-el-expand" @pointerdown.stop @click.stop="emit('open-viewer')" title="View full image">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M8.5 2H12v3.5M5.5 12H2V8.5M12 2L8 6M2 12l4-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <!-- Reposition button -->
+    <button
+      v-if="element.data.src && !imgError"
+      class="img-el-reposition"
+      title="Drag to reposition image"
+      @pointerdown.stop.prevent="startReposition"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+      </svg>
     </button>
 
     <div v-if="element.data.sourceUrl && !isEditingUrl" class="img-el-bar">
@@ -63,6 +115,29 @@ function saveUrl() {
   background: var(--canvas-bg);
   border: 1px solid var(--border);
 }
+.img-el.is-repositioning { cursor: grab; }
+.img-el-badges {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.img-el-badge {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+}
+.img-el-badge--price { color: #7a4e16; }
 .img-el-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .img-el-empty {
   width: 100%; height: 100%;
@@ -116,4 +191,24 @@ function saveUrl() {
 }
 .group:hover .img-el-expand { opacity: 1; }
 .img-el-expand:hover { background: rgba(0, 0, 0, 0.7); }
+.img-el-reposition {
+  position: absolute;
+  top: 6px;
+  right: 38px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity 0.15s;
+  backdrop-filter: blur(4px);
+  cursor: grab;
+  z-index: 3;
+}
+.group:hover .img-el-reposition { opacity: 1; }
+.img-el-reposition:hover { background: rgba(0, 0, 0, 0.7); }
 </style>

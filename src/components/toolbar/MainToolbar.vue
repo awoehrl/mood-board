@@ -10,8 +10,9 @@ defineProps({
   syncing: Boolean,
   connected: Boolean,
   boardId: String,
+  currentView: String,
 })
-const emit = defineEmits(['zoom-in', 'zoom-out', 'fit-all', 'pan-to-zone', 'export', 'export-markdown', 'import', 'copy-link'])
+const emit = defineEmits(['zoom-in', 'zoom-out', 'fit-all', 'pan-to-zone', 'export', 'export-markdown', 'import', 'copy-link', 'set-view'])
 
 const commitHash = typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : 'dev'
 const store = useBoardStore()
@@ -187,6 +188,13 @@ function onFileSelected(e) {
 
       <div class="divider" />
 
+      <div class="view-toggle">
+        <button class="view-btn" :class="{ active: currentView === 'canvas' }" @click="emit('set-view', 'canvas')">Board</button>
+        <button class="view-btn" :class="{ active: currentView === 'decision' }" @click="emit('set-view', 'decision')">Decisions</button>
+      </div>
+
+      <div class="divider" />
+
       <div class="zoom-group">
         <button class="icon-btn" @click="emit('zoom-out')">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -206,6 +214,9 @@ function onFileSelected(e) {
         </button>
         <Transition name="dropdown">
           <div v-if="showMenu" class="dropdown">
+            <button class="dropdown-item" @click="emit('set-view', 'canvas'); showMenu = false">Board view</button>
+            <button class="dropdown-item" @click="emit('set-view', 'decision'); showMenu = false">Decision view</button>
+            <div class="dropdown-sep" />
             <button class="dropdown-item" @click="emit('fit-all'); showMenu = false">Fit to screen</button>
             <button class="dropdown-item" :disabled="arranging || !store.zones.length" @click="autoArrange(); showMenu = false">{{ arranging ? 'Sorting...' : 'Auto-arrange all' }}</button>
             <div class="dropdown-sep" />
@@ -241,6 +252,32 @@ function onFileSelected(e) {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.view-toggle {
+  height: 34px;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.view-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.view-btn.active {
+  background: var(--bg);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
 }
 
 .name-btn {
@@ -416,6 +453,7 @@ a.dropdown-item { text-decoration: none; }
 
 @media (max-width: 640px) {
   .topbar { flex-wrap: wrap; height: auto; min-height: 48px; }
+  .view-toggle { display: none; }
   .zone-bar {
     order: 3;
     width: 100%;

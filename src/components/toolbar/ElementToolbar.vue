@@ -1,12 +1,22 @@
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useBoardStore } from '../../stores/board.js'
-import { compressImage, uploadImage, isUrl, isImageUrl, loadImageAsBase64 } from '../../utils/clipboard.js'
+import { compressImage, uploadImage, isUrl, isImageUrl, loadImageAsBase64, enrichUrlMetadata } from '../../utils/clipboard.js'
 import { useToast } from '../../composables/useToast.js'
+import { supportsItemMetadata } from '../../utils/itemMetadata.js'
 
-const emit = defineEmits(['show-color-picker', 'show-link-input', 'show-delete-confirm'])
+const emit = defineEmits(['show-color-picker', 'show-link-input', 'show-delete-confirm', 'open-compare'])
 const store = useBoardStore()
 const toast = useToast()
+
+const compareCount = computed(() =>
+  store.selectedElements.filter((element) => supportsItemMetadata(element.type)).length
+)
+const canCompare = computed(() =>
+  compareCount.value >= 2 &&
+  compareCount.value <= 4 &&
+  compareCount.value === store.selectedElements.length
+)
 
 function addImage() {
   const input = document.createElement('input')
@@ -78,12 +88,26 @@ async function pasteFromClipboard() {
         if (!text) continue
         store.pushUndo()
         if (isImageUrl(text)) {
+          let item = null
+          try {
+            const enriched = await enrichUrlMetadata(text)
+            item = enriched.item || null
+          } catch {
+            // Fall through with a basic item if metadata fetch fails.
+          }
           const base64 = await loadImageAsBase64(text)
           let src = base64 || text
           if (base64) { try { src = await uploadImage(base64) } catch {} }
-          store.addElement(store.selectedZoneId, { type: 'image', width: 220, height: 160, data: { src, sourceUrl: text, alt: 'Image from URL' } })
+          store.addElement(store.selectedZoneId, { type: 'image', width: 220, height: 160, data: { src, sourceUrl: item?.productUrl || text, alt: 'Image from URL' }, item })
         } else if (isUrl(text)) {
-          store.addElement(store.selectedZoneId, { type: 'link', width: 240, height: 56, data: { url: text, label: '' } })
+          let item = null
+          try {
+            const enriched = await enrichUrlMetadata(text)
+            item = enriched.item || null
+          } catch {
+            // Fall through with a basic item if metadata fetch fails.
+          }
+          store.addElement(store.selectedZoneId, { type: 'link', width: 240, height: 56, data: { url: item?.productUrl || text, label: '' }, item })
         } else {
           store.addElement(store.selectedZoneId, { type: 'text', width: 200, height: 80, data: { content: text } })
         }
@@ -113,6 +137,33 @@ function deleteSelected() {
     emit('show-delete-confirm')
   }
 }
+
+const showNote = ref(false)
+const editNote = ref('')
+
+const singleSelected = computed(() => {
+  if (store.selectedElementIds.size !== 1 || !store.selectedZone) return null
+  const id = [...store.selectedElementIds][0]
+  return store.selectedZone.elements.find(e => e.id === id) ?? null
+})
+
+function toggleNote() {
+  if (!singleSelected.value) return
+  if (showNote.value) {
+    saveNote()
+  } else {
+    editNote.value = singleSelected.value.note || ''
+    showNote.value = true
+  }
+}
+function saveNote() {
+  if (singleSelected.value && store.selectedZoneId) {
+    store.updateElement(store.selectedZoneId, singleSelected.value.id, { note: editNote.value || null })
+  }
+  showNote.value = false
+}
+
+watch(() => store.selectedElementIds, () => { showNote.value = false }, { deep: true })
 
 const showMobileMenu = ref(false)
 const fabWrap = ref(null)
@@ -157,7 +208,27 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
         <span class="el-label">Paste</span>
       </button>
+      <button v-if="canCompare" class="el-btn" title="Compare selected" @click="emit('open-compare')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></svg>
+        <span class="el-label">Compare</span>
+      </button>
       <span class="el-sep" />
+      <div class="el-note-wrap">
+        <button v-if="singleSelected" class="el-btn" :class="{ 'el-btn--active': singleSelected?.note }" title="Add/edit note" @click="toggleNote">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+        </button>
+        <Transition name="popup">
+          <div v-if="showNote" class="el-note-popover" @pointerdown.stop>
+            <textarea v-model="editNote" class="el-note-textarea" placeholder="Write a note..."
+              @keydown.escape="saveNote" autofocus />
+            <div class="el-note-actions">
+              <button class="el-note-save" @click="saveNote">Done</button>
+            </div>
+          </div>
+        </Transition>
+      </div>
       <button class="el-btn el-btn--danger" title="Delete selected" @click="deleteSelected">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
       </button>
@@ -182,6 +253,14 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
     <!-- Mobile: selection action bar (only when elements are selected) -->
     <div v-if="store.selectedElementIds.size > 0" class="el-mobile-actions">
       <span class="el-action-count">{{ store.selectedElementIds.size }} selected</span>
+      <button v-if="canCompare" class="el-action-btn" @click="emit('open-compare')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></svg>
+        <span>Compare</span>
+      </button>
+      <button v-if="singleSelected" class="el-action-btn" :class="{ 'el-btn--active': singleSelected?.note }" @click="toggleNote">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span>Note</span>
+      </button>
       <button class="el-action-btn el-action-btn--danger" @click="deleteSelected">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
         <span>Delete</span>
@@ -283,6 +362,44 @@ onUnmounted(() => { if (removeClickOutside) removeClickOutside() })
   white-space: nowrap;
 }
 
+
+.el-note-wrap { position: relative; }
+.el-btn--active { color: #fbbf24; }
+.el-btn--active:hover { color: #f59e0b; }
+.el-note-popover {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.el-note-textarea {
+  width: 100%;
+  height: 72px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  resize: none;
+  outline: none;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s;
+}
+.el-note-textarea:focus { border-color: var(--accent); }
+.el-note-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+.el-note-save {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+.el-note-save:hover { background: var(--accent-soft); }
 
 .popup-enter-active, .popup-leave-active { transition: all 0.15s ease; }
 .popup-enter-from, .popup-leave-to { opacity: 0; transform: translateY(4px); }

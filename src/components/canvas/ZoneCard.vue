@@ -191,7 +191,7 @@ const componentMap = { image: ImageElement, link: LinkElement, text: TextElement
         @pointerdown="onElementPointerDown($event, el)"
       >
         <component :is="componentMap[el.type]" :element="el" :zone-id="zone.id" @open-viewer="emit('open-viewer', { zoneId: zone.id, elementId: el.id })" />
-        <NoteOverlay :element="el" :zone-id="zone.id" />
+        <NoteOverlay :element="el" />
       </div>
     </div>
 

@@ -1,6 +1,6 @@
 import { useBoardStore } from '../stores/board.js'
 import { screenToCanvas, hitTestZones } from '../utils/geometry.js'
-import { extractSourceUrl, isUrl, isImageUrl, compressImage, loadImageAsBase64, uploadImage } from '../utils/clipboard.js'
+import { extractSourceUrl, isUrl, isImageUrl, compressImage, loadImageAsBase64, uploadImage, enrichUrlMetadata } from '../utils/clipboard.js'
 import { useToast } from './useToast.js'
 
 export function useDragDrop(canvasState, showImageSourceModal) {
@@ -106,6 +106,13 @@ export function useDragDrop(canvasState, showImageSourceModal) {
 
       // Image URL → create image element
       if (isImageUrl(trimmed)) {
+        let item = null
+        try {
+          const enriched = await enrichUrlMetadata(trimmed)
+          item = enriched.item || null
+        } catch {
+          // Ignore enrichment failures and fall back to a basic image card.
+        }
         const base64 = await loadImageAsBase64(trimmed)
         let src = base64 || trimmed
         if (base64) {
@@ -118,25 +125,34 @@ export function useDragDrop(canvasState, showImageSourceModal) {
           height: 160,
           data: {
             src,
-            sourceUrl: trimmed,
+            sourceUrl: item?.productUrl || trimmed,
             alt: 'Image from URL',
           },
+          item,
         })
         return
       }
 
       // Regular URL → create link with preview
       if (isUrl(trimmed)) {
+        let item = null
+        try {
+          const enriched = await enrichUrlMetadata(trimmed)
+          item = enriched.item || null
+        } catch {
+          // Ignore enrichment failures and fall back to a basic link card.
+        }
         store.addElement(targetZone.id, {
           type: 'link',
           width: 240,
           height: 64,
           data: {
-            url: trimmed,
+            url: item?.productUrl || trimmed,
             label: '',
             favicon: null,
             domain: null,
           },
+          item,
         })
         return
       }

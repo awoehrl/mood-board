@@ -62,6 +62,16 @@ export async function uploadImage(base64DataUrl) {
   return data.url
 }
 
+export async function enrichUrlMetadata(url, title = '', text = '') {
+  const res = await fetch('/api/enrich', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, title, text }),
+  })
+  if (!res.ok) throw new Error('Metadata fetch failed')
+  return await res.json()
+}
+
 export function compressImage(dataUrl, maxWidth = 1200, quality = 0.7) {
   return new Promise((resolve) => {
     const img = new Image()
